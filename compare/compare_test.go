@@ -57,15 +57,10 @@ func BenchmarkPingPongProton(b *testing.B) {
 			if err != nil {
 				return errors.WithStack(err)
 			}
-			tcpConn := c.(*net.TCPConn)
-			buf := resonance.NewPeerBuffer()
+			conn := resonance.NewConnection(c.(*net.TCPConn), config)
 
 			return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
 				spawn("stream", parallel.Fail, func(ctx context.Context) error {
-					defer buf.Close()
-					defer tcpConn.Close()
-
-					conn := resonance.NewConnection(buf, config)
 					for range b.N {
 						msgAny, _ := conn.Receive()
 						msg1 = msgAny.(*proton.Transaction)
@@ -74,14 +69,7 @@ func BenchmarkPingPongProton(b *testing.B) {
 					<-ctx.Done()
 					return nil
 				})
-				spawn("buf1", parallel.Fail, func(ctx context.Context) error {
-					_, _ = tcpConn.WriteTo(buf.OtherPeer())
-					return nil
-				})
-				spawn("buf2", parallel.Fail, func(ctx context.Context) error {
-					_, _ = tcpConn.ReadFrom(buf.OtherPeer())
-					return nil
-				})
+				spawn("connection", parallel.Fail, conn.Run)
 				return nil
 			})
 		})
@@ -95,15 +83,10 @@ func BenchmarkPingPongProton(b *testing.B) {
 				}
 				time.Sleep(100 * time.Millisecond)
 			}
-			tcpConn := c.(*net.TCPConn)
-			buf := resonance.NewPeerBuffer()
+			conn := resonance.NewConnection(c.(*net.TCPConn), config)
 
 			return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
 				spawn("stream", parallel.Exit, func(ctx context.Context) error {
-					defer buf.Close()
-					defer tcpConn.Close()
-
-					conn := resonance.NewConnection(buf, config)
 					b.StartTimer()
 					for range b.N {
 						_ = conn.Send(protonTx)
@@ -113,14 +96,7 @@ func BenchmarkPingPongProton(b *testing.B) {
 					b.StopTimer()
 					return nil
 				})
-				spawn("buf1", parallel.Fail, func(ctx context.Context) error {
-					_, _ = tcpConn.WriteTo(buf.OtherPeer())
-					return nil
-				})
-				spawn("buf2", parallel.Fail, func(ctx context.Context) error {
-					_, _ = tcpConn.ReadFrom(buf.OtherPeer())
-					return nil
-				})
+				spawn("connection", parallel.Fail, conn.Run)
 				return nil
 			})
 		})
@@ -208,29 +184,17 @@ func BenchmarkStreamProton(b *testing.B) {
 			if err != nil {
 				return errors.WithStack(err)
 			}
-			tcpConn := c.(*net.TCPConn)
-			buf := resonance.NewPeerBuffer()
+			conn := resonance.NewConnection(c.(*net.TCPConn), config)
 
 			return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
 				spawn("stream", parallel.Fail, func(ctx context.Context) error {
-					defer buf.Close()
-					defer tcpConn.Close()
-
-					conn := resonance.NewConnection(buf, config)
 					for range b.N {
 						_ = conn.Send(protonTx)
 					}
 					<-ctx.Done()
 					return nil
 				})
-				spawn("buf1", parallel.Fail, func(ctx context.Context) error {
-					_, _ = tcpConn.WriteTo(buf.OtherPeer())
-					return nil
-				})
-				spawn("buf2", parallel.Fail, func(ctx context.Context) error {
-					_, _ = tcpConn.ReadFrom(buf.OtherPeer())
-					return nil
-				})
+				spawn("connection", parallel.Fail, conn.Run)
 				return nil
 			})
 		})
@@ -244,15 +208,10 @@ func BenchmarkStreamProton(b *testing.B) {
 				}
 				time.Sleep(100 * time.Millisecond)
 			}
-			tcpConn := c.(*net.TCPConn)
-			buf := resonance.NewPeerBuffer()
+			conn := resonance.NewConnection(c.(*net.TCPConn), config)
 
 			return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
 				spawn("stream", parallel.Exit, func(ctx context.Context) error {
-					defer buf.Close()
-					defer tcpConn.Close()
-
-					conn := resonance.NewConnection(buf, config)
 					b.StartTimer()
 					for range b.N {
 						msgAny, _ := conn.Receive()
@@ -261,14 +220,7 @@ func BenchmarkStreamProton(b *testing.B) {
 					b.StopTimer()
 					return nil
 				})
-				spawn("buf1", parallel.Fail, func(ctx context.Context) error {
-					_, _ = tcpConn.WriteTo(buf.OtherPeer())
-					return nil
-				})
-				spawn("buf2", parallel.Fail, func(ctx context.Context) error {
-					_, _ = tcpConn.ReadFrom(buf.OtherPeer())
-					return nil
-				})
+				spawn("connection", parallel.Fail, conn.Run)
 				return nil
 			})
 		})
