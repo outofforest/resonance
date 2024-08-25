@@ -1,6 +1,8 @@
 package resonance
 
-import "github.com/outofforest/spin"
+import (
+	"github.com/outofforest/spin"
+)
 
 // NewPeerBuffer returns new peer buffer.
 func NewPeerBuffer() PeerBuffer {
@@ -17,17 +19,12 @@ type PeerBuffer struct {
 }
 
 // Read reads data from the read buffer.
-func (b PeerBuffer) Read(buf []byte) (n int, err error) {
+func (b PeerBuffer) Read(buf []byte) (int, error) {
 	return b.read.Read(buf)
 }
 
-// ReadByte reads byte from the read buffer.
-func (b PeerBuffer) ReadByte() (byte, error) {
-	return b.read.ReadByte()
-}
-
 // Write writes data to the write buffer.
-func (b PeerBuffer) Write(buf []byte) (n int, err error) {
+func (b PeerBuffer) Write(buf []byte) (int, error) {
 	return b.write.Write(buf)
 }
 
@@ -37,4 +34,14 @@ func (b PeerBuffer) OtherPeer() PeerBuffer {
 		read:  b.write,
 		write: b.read,
 	}
+}
+
+// Close closes the streams.
+func (b PeerBuffer) Close() error {
+	err1 := b.read.Close()
+	err2 := b.write.Close()
+	if err1 != nil {
+		return err1
+	}
+	return err2
 }
