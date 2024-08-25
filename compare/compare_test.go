@@ -171,7 +171,7 @@ func BenchmarkPingPongProtobuf(b *testing.B) {
 			}
 			b.StartTimer()
 			for range b.N {
-				txStream.Send(protobufMsg)
+				_ = txStream.Send(protobufMsg)
 				resp, _ = txStream.Recv()
 				txStream, _ = txClient.SendTransactions(ctx)
 			}

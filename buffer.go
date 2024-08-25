@@ -36,6 +36,7 @@ func (b PeerBuffer) OtherPeer() PeerBuffer {
 	}
 }
 
+// Close closes the streams.
 func (b PeerBuffer) Close() error {
 	err1 := b.read.Close()
 	err2 := b.write.Close()
