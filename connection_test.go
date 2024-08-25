@@ -3,12 +3,16 @@ package resonance
 import (
 	"testing"
 
+	"github.com/outofforest/parallel"
 	"github.com/stretchr/testify/require"
 
+	"github.com/outofforest/resonance/pkg/sim"
 	"github.com/outofforest/resonance/test"
 )
 
 func TestConnection(t *testing.T) {
+	ctx := sim.NewContext(t)
+	group := sim.NewParallel(ctx, t)
 	requireT := require.New(t)
 
 	config := Config{
@@ -21,33 +25,37 @@ func TestConnection(t *testing.T) {
 	c1 := NewConnection(peer, config)
 	c2 := NewConnection(peer.OtherPeer(), config)
 
-	requireT.NoError(c1.Send(&test.Message{
-		Field1: "Hello! I'm peer 1",
-	}))
+	group.Spawn("c1", parallel.Fail, c1.Run)
+	group.Spawn("c2", parallel.Fail, c2.Run)
 
-	msg, err := c2.Receive()
-	requireT.NoError(err)
-	requireT.Equal("Hello! I'm peer 1", msg.(*test.Message).Field1)
+	requireT.True(
+		c1.Send(&test.Message{
+			Field: "Hello! I'm peer 1",
+		}),
+	)
 
-	requireT.NoError(c2.Send(&test.Message{
-		Field1: "Hello! I'm peer 2",
-	}))
+	msg, ok := c2.Receive()
+	requireT.True(ok)
 
-	msg, err = c1.Receive()
-	requireT.NoError(err)
-	requireT.Equal("Hello! I'm peer 2", msg.(*test.Message).Field1)
+	requireT.Equal("Hello! I'm peer 1", msg.(*test.Message).Field)
 
-	requireT.NoError(c1.Ping())
+	requireT.True(
+		c2.Send(&test.Message{
+			Field: "Hello! I'm peer 2",
+		}),
+	)
 
-	msg, err = c2.Receive()
-	requireT.NoError(err)
-	requireT.Nil(msg)
+	msg, ok = c1.Receive()
+	requireT.True(ok)
+	requireT.Equal("Hello! I'm peer 2", msg.(*test.Message).Field)
 
-	requireT.NoError(c1.Send(&test.Message{
-		Field1: "Good to see you!",
-	}))
+	requireT.True(
+		c1.Send(&test.Message{
+			Field: "Good to see you!",
+		}),
+	)
 
-	msg, err = c2.Receive()
-	requireT.NoError(err)
-	requireT.Equal("Good to see you!", msg.(*test.Message).Field1)
+	msg, ok = c2.Receive()
+	requireT.True(ok)
+	requireT.Equal("Good to see you!", msg.(*test.Message).Field)
 }

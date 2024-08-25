@@ -2,9 +2,18 @@ package resonance
 
 import (
 	"bytes"
+	"context"
 	"io"
+	"sync/atomic"
+	"time"
 
+	"github.com/outofforest/parallel"
 	"github.com/pkg/errors"
+)
+
+const (
+	pingInterval = time.Second
+	missedPings  = 5
 )
 
 var pingBytes = bytes.Repeat([]byte{0x00}, maxVarUInt64Size)
@@ -26,107 +35,190 @@ type Config struct {
 }
 
 // NewConnection creates new connection.
-func NewConnection(peer io.ReadWriter, config Config) *Connection {
+func NewConnection(peer Peer, config Config) *Connection {
 	return &Connection{
 		peer:       peer,
 		config:     config,
+		buf:        NewPeerBuffer(),
+		receiveCh:  make(chan any),
+		sendCh:     make(chan Marshalable),
 		sendBuf:    make([]byte, config.MaxMessageSize+2*maxVarUInt64Size),
 		receiveBuf: make([]byte, config.MaxMessageSize+2*maxVarUInt64Size),
+		doneCh:     make(chan struct{}),
 	}
 }
 
 // Connection allows to communicate with the peer.
 type Connection struct {
-	peer   io.ReadWriter
+	peer   Peer
 	config Config
 
+	buf                 PeerBuffer
+	pingTime            uint64
+	receiveCh           chan any
+	sendCh              chan Marshalable
 	sendBuf, receiveBuf []byte
+
+	doneCh chan struct{}
+}
+
+// Run runs the connection.
+func (c *Connection) Run(ctx context.Context) error {
+	defer close(c.doneCh)
+
+	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
+		c.pingTime = uint64(time.Now().Unix())
+
+		spawn("receive", parallel.Fail, c.runReceivePipeline)
+		spawn("send", parallel.Fail, c.runSendPipeline)
+		spawn("copy", parallel.Exit, func(ctx context.Context) error {
+			return c.buf.Run(ctx, c.peer)
+		})
+
+		return nil
+	})
 }
 
 // Send sends message to the peer.
-func (c *Connection) Send(msg Marshalable) error {
-	msgID, err := c.config.MsgToIDFunc(msg)
-	if err != nil {
-		return err
+func (c *Connection) Send(msg Marshalable) bool {
+	select {
+	case <-c.doneCh:
+		return false
+	case c.sendCh <- msg:
+		return true
 	}
-
-	n := putVarUInt64(c.sendBuf[maxVarUInt64Size:], msgID)
-	msgSize, err := c.marshalMessage(msg, c.sendBuf[maxVarUInt64Size+n:])
-	if err != nil {
-		return err
-	}
-
-	totalSize := n + msgSize
-	bufferStart := maxVarUInt64Size - varUInt64Size(totalSize)
-	n = putVarUInt64(c.sendBuf[bufferStart:], totalSize)
-	totalSize += n
-
-	if totalSize < maxVarUInt64Size {
-		totalSize = maxVarUInt64Size
-	}
-
-	if _, err := c.peer.Write(c.sendBuf[bufferStart : bufferStart+totalSize]); err != nil {
-		return errors.WithStack(err)
-	}
-
-	return nil
 }
 
 // Receive receives message from the peer.
-func (c *Connection) Receive() (any, error) {
-	var sizeReceived uint64
-	for sizeReceived < maxVarUInt64Size {
-		n, err := c.peer.Read(c.receiveBuf[sizeReceived:maxVarUInt64Size])
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		sizeReceived += uint64(n)
-	}
-
-	size, n := varUInt64(c.receiveBuf[:maxVarUInt64Size])
-	receiveBuf := c.receiveBuf[n:]
-
-	switch {
-	case size == 0:
-		// ping received
-		return nil, nil
-	case size > c.config.MaxMessageSize+maxVarUInt64Size:
-		return nil, errors.Errorf("message size %d exceeds allowed maximum %d",
-			size, c.config.MaxMessageSize)
-	}
-
-	totalReceived := sizeReceived - n
-	for totalReceived < size {
-		n, err := c.peer.Read(receiveBuf[totalReceived:size])
-		if err != nil {
-			return nil, errors.WithStack(err)
-		}
-		totalReceived += uint64(n)
-	}
-
-	msgID, n := varUInt64(receiveBuf[:totalReceived])
-	msg, err := c.config.IDToMsgFunc(msgID)
-	if err != nil {
-		return nil, err
-	}
-
-	msgUnmarshaled, msgSize, err := c.unmarshalMessage(msg, receiveBuf[n:size])
-	if err != nil {
-		return nil, err
-	}
-
-	expectedSize := size - n
-	if msgSize != expectedSize {
-		return nil, errors.Errorf("expected message size %d, got %d", expectedSize, msgSize)
-	}
-
-	return msgUnmarshaled, nil
+func (c *Connection) Receive() (any, bool) {
+	msg, ok := <-c.receiveCh
+	return msg, ok
 }
 
-// Ping sends the 0x00 byte to ensure connection works.
-func (c *Connection) Ping() error {
-	_, err := c.peer.Write(pingBytes)
-	return errors.WithStack(err)
+func (c *Connection) close() {
+	_ = c.peer.Close()
+	_ = c.buf.Close()
+	for range c.receiveCh {
+	}
+}
+
+func (c *Connection) runReceivePipeline(ctx context.Context) error {
+	defer c.close()
+	defer close(c.receiveCh)
+
+	for {
+		var sizeReceived uint64
+		for sizeReceived < maxVarUInt64Size {
+			n, err := c.buf.Read(c.receiveBuf[sizeReceived:maxVarUInt64Size])
+			if errors.Is(err, io.EOF) {
+				return errors.WithStack(ctx.Err())
+			}
+			if err != nil {
+				return err
+			}
+			sizeReceived += uint64(n)
+		}
+
+		atomic.StoreUint64(&c.pingTime, uint64(time.Now().Unix()))
+
+		size, n := varUInt64(c.receiveBuf[:maxVarUInt64Size])
+		receiveBuf := c.receiveBuf[n:]
+
+		switch {
+		case size == 0:
+			// ping received
+			continue
+		case size > c.config.MaxMessageSize+maxVarUInt64Size:
+			return errors.Errorf("message size %d exceeds allowed maximum %d",
+				size, c.config.MaxMessageSize)
+		}
+
+		totalReceived := sizeReceived - n
+		for totalReceived < size {
+			n, err := c.buf.Read(receiveBuf[totalReceived:size])
+			if errors.Is(err, io.EOF) {
+				return errors.WithStack(ctx.Err())
+			}
+			if err != nil {
+				return err
+			}
+			totalReceived += uint64(n)
+		}
+
+		msgID, n := varUInt64(receiveBuf[:totalReceived])
+		msg, err := c.config.IDToMsgFunc(msgID)
+		if err != nil {
+			return err
+		}
+
+		msgUnmarshaled, msgSize, err := c.unmarshalMessage(msg, receiveBuf[n:size])
+		if err != nil {
+			return err
+		}
+
+		expectedSize := size - n
+		if msgSize != expectedSize {
+			return errors.Errorf("expected message size %d, got %d", expectedSize, msgSize)
+		}
+
+		c.receiveCh <- msgUnmarshaled
+	}
+}
+
+func (c *Connection) runSendPipeline(ctx context.Context) error {
+	defer c.close()
+
+	pingSendTicker := time.NewTicker(pingInterval)
+	defer pingSendTicker.Stop()
+
+	pingVerifyTicker := time.NewTicker(pingInterval)
+	defer pingVerifyTicker.Stop()
+
+	var msg Marshalable
+
+	for {
+		select {
+		case <-ctx.Done():
+			return errors.WithStack(ctx.Err())
+		case <-pingVerifyTicker.C:
+			pingTime := atomic.LoadUint64(&c.pingTime)
+			if uint64(time.Now().Unix())-pingTime > missedPings*uint64(pingInterval/time.Second) {
+				return errors.New("connection is dead")
+			}
+			continue
+		case <-pingSendTicker.C:
+			if _, err := c.buf.Write(pingBytes); err != nil {
+				return err
+			}
+			continue
+		case msg = <-c.sendCh:
+			pingSendTicker.Reset(pingInterval)
+		}
+
+		msgID, err := c.config.MsgToIDFunc(msg)
+		if err != nil {
+			return err
+		}
+
+		n := putVarUInt64(c.sendBuf[maxVarUInt64Size:], msgID)
+		msgSize, err := c.marshalMessage(msg, c.sendBuf[maxVarUInt64Size+n:])
+		if err != nil {
+			return err
+		}
+
+		totalSize := n + msgSize
+		bufferStart := maxVarUInt64Size - varUInt64Size(totalSize)
+		n = putVarUInt64(c.sendBuf[bufferStart:], totalSize)
+		totalSize += n
+
+		if totalSize < maxVarUInt64Size {
+			totalSize = maxVarUInt64Size
+		}
+
+		if _, err := c.buf.Write(c.sendBuf[bufferStart : bufferStart+totalSize]); err != nil {
+			return err
+		}
+	}
 }
 
 func (c *Connection) marshalMessage(msg Marshalable, buf []byte) (size uint64, err error) {
