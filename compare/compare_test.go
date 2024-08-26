@@ -27,6 +27,9 @@ import (
 // tc qdisc add dev lo root netem delay 20ms rate 500Mbit
 // tc qdisc del dev lo root
 
+// go test --benchtime=100000x -bench=BenchmarkStreamProton -run=^$ -cpuprofile profile.out
+// go tool pprof -http="localhost:8000" pprofbin ./profile.out
+
 // echo "4194304 4194304 4194304" > /proc/sys/net/ipv4/tcp_rmem
 // echo "4194304 4194304 4194304" > /proc/sys/net/ipv4/tcp_wmem
 // echo 1 > /proc/sys/net/ipv4/tcp_low_latency
