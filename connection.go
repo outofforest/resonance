@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/outofforest/parallel"
+	"github.com/outofforest/proton"
 	"github.com/pkg/errors"
 )
 
@@ -18,20 +19,11 @@ const (
 
 var pingBytes = bytes.Repeat([]byte{0x00}, maxVarUInt64Size)
 
-// Marshalable is the interface for messages.
-type Marshalable interface {
-	Marshal(buf []byte) uint64
-}
-
-type unmarshalable interface {
-	Unmarshal(buf []byte) uint64
-}
-
 // Config is the configuration of connection.
 type Config struct {
 	MaxMessageSize uint64
-	MsgToIDFunc    func(m any) (uint64, error)
-	IDToMsgFunc    func(id uint64) (any, error)
+	MarshalFunc    func(m proton.Marshalable, buf []byte) (uint64, uint64, error)
+	UnmarshalFunc  func(id uint64, buf []byte) (any, uint64, error)
 }
 
 // NewConnection creates new connection.
@@ -40,8 +32,8 @@ func NewConnection(peer Peer, config Config) *Connection {
 		peer:       peer,
 		config:     config,
 		buf:        NewPeerBuffer(),
-		receiveCh:  make(chan any),
-		sendCh:     make(chan Marshalable),
+		receiveCh:  make(chan any, 1),
+		sendCh:     make(chan proton.Marshalable, 1),
 		sendBuf:    make([]byte, config.MaxMessageSize+2*maxVarUInt64Size),
 		receiveBuf: make([]byte, config.MaxMessageSize+2*maxVarUInt64Size),
 	}
@@ -55,7 +47,7 @@ type Connection struct {
 	buf                     PeerBuffer
 	sendLatch, receiveLatch atomic.Bool
 	receiveCh               chan any
-	sendCh                  chan Marshalable
+	sendCh                  chan proton.Marshalable
 	sendBuf, receiveBuf     []byte
 }
 
@@ -98,7 +90,7 @@ func (c *Connection) Run(ctx context.Context) error {
 }
 
 // Send sends message to the peer.
-func (c *Connection) Send(msg Marshalable) bool {
+func (c *Connection) Send(msg proton.Marshalable) bool {
 	defer recover() //nolint:errcheck // Error doesn't matter here
 
 	c.sendCh <- msg
@@ -161,12 +153,7 @@ func (c *Connection) runReceivePipeline(ctx context.Context) error {
 		}
 
 		msgID, n := varUInt64(receiveBuf[:totalReceived])
-		msg, err := c.config.IDToMsgFunc(msgID)
-		if err != nil {
-			return err
-		}
-
-		msgUnmarshaled, msgSize, err := c.unmarshalMessage(msg, receiveBuf[n:size])
+		msg, msgSize, err := c.config.UnmarshalFunc(msgID, receiveBuf[n:size])
 		if err != nil {
 			return err
 		}
@@ -176,7 +163,7 @@ func (c *Connection) runReceivePipeline(ctx context.Context) error {
 			return errors.Errorf("expected message size %d, got %d", expectedSize, msgSize)
 		}
 
-		c.receiveCh <- msgUnmarshaled
+		c.receiveCh <- msg
 	}
 }
 
@@ -192,21 +179,17 @@ func (c *Connection) runSendPipeline(ctx context.Context) error {
 			continue
 		}
 
-		msgID, err := c.config.MsgToIDFunc(msg)
+		msgID, msgSize, err := c.config.MarshalFunc(msg, c.sendBuf[2*maxVarUInt64Size:])
 		if err != nil {
 			return err
 		}
 
-		n := putVarUInt64(c.sendBuf[maxVarUInt64Size:], msgID)
-		msgSize, err := c.marshalMessage(msg, c.sendBuf[maxVarUInt64Size+n:])
-		if err != nil {
-			return err
-		}
+		msgIDSize := varUInt64Size(msgID)
+		putVarUInt64(c.sendBuf[2*maxVarUInt64Size-msgIDSize:], msgID)
 
-		totalSize := n + msgSize
-		bufferStart := maxVarUInt64Size - varUInt64Size(totalSize)
-		n = putVarUInt64(c.sendBuf[bufferStart:], totalSize)
-		totalSize += n
+		totalSize := msgIDSize + msgSize
+		bufferStart := 2*maxVarUInt64Size - msgIDSize - varUInt64Size(totalSize)
+		totalSize += putVarUInt64(c.sendBuf[bufferStart:], totalSize)
 
 		if totalSize < maxVarUInt64Size {
 			totalSize = maxVarUInt64Size
@@ -218,27 +201,4 @@ func (c *Connection) runSendPipeline(ctx context.Context) error {
 	}
 
 	return errors.WithStack(ctx.Err())
-}
-
-func (c *Connection) marshalMessage(msg Marshalable, buf []byte) (size uint64, err error) {
-	defer func() {
-		if res := recover(); res != nil {
-			size = 0
-			err = errors.Errorf("marshaling message failed: %s", res)
-		}
-	}()
-	return msg.Marshal(buf), nil
-}
-
-func (c *Connection) unmarshalMessage(msg any, buf []byte) (msgUnmarshaled any, size uint64, err error) {
-	defer func() {
-		if res := recover(); res != nil {
-			msgUnmarshaled = nil
-			size = 0
-			err = errors.Errorf("marshaling message failed: %s", res)
-		}
-	}()
-
-	size = msg.(unmarshalable).Unmarshal(buf)
-	return msg, size, nil
 }
