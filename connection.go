@@ -99,7 +99,7 @@ func (c *Connection) Run(ctx context.Context) error {
 
 // Send sends message to the peer.
 func (c *Connection) Send(msg Marshalable) bool {
-	defer recover()
+	defer recover() //nolint:errcheck // Error doesn't matter here
 
 	c.sendCh <- msg
 	return true
