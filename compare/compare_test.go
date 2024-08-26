@@ -41,10 +41,9 @@ func BenchmarkPingPongProton(b *testing.B) {
 	ctx, cancel := context.WithCancel(logger.WithLogger(context.Background(), logger.New(logger.DefaultConfig)))
 	b.Cleanup(cancel)
 
-	config := resonance.Config{
+	config := resonance.Config[proton.Marshaller]{
 		MaxMessageSize: protonTx.Size(),
-		MarshalFunc:    proton.Marshal,
-		UnmarshalFunc:  proton.Unmarshal(),
+		Marshaller:     proton.NewMarshaller(100),
 	}
 
 	ls, err := net.Listen("tcp", "localhost:0")
@@ -169,10 +168,9 @@ func BenchmarkStreamProton(b *testing.B) {
 	ctx, cancel := context.WithCancel(logger.WithLogger(context.Background(), logger.New(logger.DefaultConfig)))
 	b.Cleanup(cancel)
 
-	config := resonance.Config{
+	config := resonance.Config[proton.Marshaller]{
 		MaxMessageSize: protonTx.Size(),
-		MarshalFunc:    proton.Marshal,
-		UnmarshalFunc:  proton.Unmarshal(),
+		Marshaller:     proton.NewMarshaller(100),
 	}
 
 	ls, err := net.Listen("tcp", "localhost:0")

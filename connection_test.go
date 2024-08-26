@@ -15,10 +15,9 @@ func TestConnection(t *testing.T) {
 	group := sim.NewParallel(ctx, t)
 	requireT := require.New(t)
 
-	config := Config{
+	config := Config[test.Marshaller]{
 		MaxMessageSize: 1024,
-		MarshalFunc:    test.Marshal,
-		UnmarshalFunc:  test.Unmarshal(),
+		Marshaller:     test.NewMarshaller(100),
 	}
 
 	peer := NewPeerBuffer()
