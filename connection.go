@@ -20,39 +20,38 @@ const (
 var pingBytes = bytes.Repeat([]byte{0x00}, maxVarUInt64Size)
 
 // Config is the configuration of connection.
-type Config struct {
+type Config[M proton.Marshaller] struct {
 	MaxMessageSize uint64
-	MarshalFunc    func(m proton.Marshalable, buf []byte) (uint64, uint64, error)
-	UnmarshalFunc  func(id uint64, buf []byte) (any, uint64, error)
+	Marshaller     M
 }
 
 // NewConnection creates new connection.
-func NewConnection(peer Peer, config Config) *Connection {
-	return &Connection{
+func NewConnection[M proton.Marshaller](peer Peer, config Config[M]) *Connection[M] {
+	return &Connection[M]{
 		peer:       peer,
 		config:     config,
 		buf:        NewPeerBuffer(),
 		receiveCh:  make(chan any, 1),
-		sendCh:     make(chan proton.Marshalable, 1),
+		sendCh:     make(chan proton.Marshallable, 1),
 		sendBuf:    make([]byte, config.MaxMessageSize+2*maxVarUInt64Size),
 		receiveBuf: make([]byte, config.MaxMessageSize+2*maxVarUInt64Size),
 	}
 }
 
 // Connection allows to communicate with the peer.
-type Connection struct {
+type Connection[M proton.Marshaller] struct {
 	peer   Peer
-	config Config
+	config Config[M]
 
 	buf                     PeerBuffer
 	sendLatch, receiveLatch atomic.Bool
 	receiveCh               chan any
-	sendCh                  chan proton.Marshalable
+	sendCh                  chan proton.Marshallable
 	sendBuf, receiveBuf     []byte
 }
 
 // Run runs the connection.
-func (c *Connection) Run(ctx context.Context) error {
+func (c *Connection[M]) Run(ctx context.Context) error {
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
 		spawn("receive", parallel.Fail, c.runReceivePipeline)
 		spawn("send", parallel.Fail, c.runSendPipeline)
@@ -90,7 +89,7 @@ func (c *Connection) Run(ctx context.Context) error {
 }
 
 // Send sends message to the peer.
-func (c *Connection) Send(msg proton.Marshalable) bool {
+func (c *Connection[M]) Send(msg proton.Marshallable) bool {
 	defer recover() //nolint:errcheck // Error doesn't matter here
 
 	c.sendCh <- msg
@@ -98,19 +97,19 @@ func (c *Connection) Send(msg proton.Marshalable) bool {
 }
 
 // Receive receives message from the peer.
-func (c *Connection) Receive() (any, bool) {
+func (c *Connection[M]) Receive() (any, bool) {
 	msg, ok := <-c.receiveCh
 	return msg, ok
 }
 
-func (c *Connection) close() {
+func (c *Connection[M]) close() {
 	_ = c.peer.Close()
 	_ = c.buf.Close()
 	for range c.receiveCh {
 	}
 }
 
-func (c *Connection) runReceivePipeline(ctx context.Context) error {
+func (c *Connection[M]) runReceivePipeline(ctx context.Context) error {
 	defer close(c.receiveCh)
 
 	for {
@@ -153,7 +152,7 @@ func (c *Connection) runReceivePipeline(ctx context.Context) error {
 		}
 
 		msgID, n := varUInt64(receiveBuf[:totalReceived])
-		msg, msgSize, err := c.config.UnmarshalFunc(msgID, receiveBuf[n:size])
+		msg, msgSize, err := c.config.Marshaller.Unmarshal(msgID, receiveBuf[n:size])
 		if err != nil {
 			return err
 		}
@@ -167,7 +166,7 @@ func (c *Connection) runReceivePipeline(ctx context.Context) error {
 	}
 }
 
-func (c *Connection) runSendPipeline(ctx context.Context) error {
+func (c *Connection[M]) runSendPipeline(ctx context.Context) error {
 	for msg := range c.sendCh {
 		c.sendLatch.Store(true)
 
@@ -179,7 +178,7 @@ func (c *Connection) runSendPipeline(ctx context.Context) error {
 			continue
 		}
 
-		msgID, msgSize, err := c.config.MarshalFunc(msg, c.sendBuf[2*maxVarUInt64Size:])
+		msgID, msgSize, err := c.config.Marshaller.Marshal(msg, c.sendBuf[2*maxVarUInt64Size:])
 		if err != nil {
 			return err
 		}
