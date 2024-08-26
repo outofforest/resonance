@@ -17,8 +17,8 @@ func TestConnection(t *testing.T) {
 
 	config := Config{
 		MaxMessageSize: 1024,
-		MsgToIDFunc:    test.MsgToID,
-		IDToMsgFunc:    test.IDToMsg(),
+		MarshalFunc:    test.Marshal,
+		UnmarshalFunc:  test.Unmarshal(),
 	}
 
 	peer := NewPeerBuffer()
