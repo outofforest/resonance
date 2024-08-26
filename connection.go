@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	pingInterval = time.Second
+	pingInterval = 2 * time.Second
 	missedPings  = 5
 )
 
@@ -44,7 +44,6 @@ func NewConnection(peer Peer, config Config) *Connection {
 		sendCh:     make(chan Marshalable),
 		sendBuf:    make([]byte, config.MaxMessageSize+2*maxVarUInt64Size),
 		receiveBuf: make([]byte, config.MaxMessageSize+2*maxVarUInt64Size),
-		doneCh:     make(chan struct{}),
 	}
 }
 
@@ -53,24 +52,43 @@ type Connection struct {
 	peer   Peer
 	config Config
 
-	buf                 PeerBuffer
-	pingTime            uint64
-	receiveCh           chan any
-	sendCh              chan Marshalable
-	sendBuf, receiveBuf []byte
-
-	doneCh chan struct{}
+	buf                     PeerBuffer
+	sendLatch, receiveLatch atomic.Bool
+	receiveCh               chan any
+	sendCh                  chan Marshalable
+	sendBuf, receiveBuf     []byte
 }
 
 // Run runs the connection.
 func (c *Connection) Run(ctx context.Context) error {
-	defer close(c.doneCh)
-
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-		c.pingTime = uint64(time.Now().Unix())
-
 		spawn("receive", parallel.Fail, c.runReceivePipeline)
 		spawn("send", parallel.Fail, c.runSendPipeline)
+		spawn("ping", parallel.Fail, func(ctx context.Context) error {
+			defer c.close()
+			defer close(c.sendCh)
+
+			pingTicker := time.NewTicker(pingInterval)
+			defer pingTicker.Stop()
+
+			missedTicker := time.NewTicker(missedPings * pingInterval)
+			defer missedTicker.Stop()
+
+			for {
+				select {
+				case <-ctx.Done():
+					return errors.WithStack(ctx.Err())
+				case <-pingTicker.C:
+					if latch := c.sendLatch.Swap(false); !latch {
+						c.sendCh <- nil
+					}
+				case <-missedTicker.C:
+					if latch := c.receiveLatch.Swap(false); !latch {
+						return errors.New("connection is dead")
+					}
+				}
+			}
+		})
 		spawn("copy", parallel.Exit, func(ctx context.Context) error {
 			return c.buf.Run(ctx, c.peer)
 		})
@@ -81,12 +99,10 @@ func (c *Connection) Run(ctx context.Context) error {
 
 // Send sends message to the peer.
 func (c *Connection) Send(msg Marshalable) bool {
-	select {
-	case <-c.doneCh:
-		return false
-	case c.sendCh <- msg:
-		return true
-	}
+	defer recover()
+
+	c.sendCh <- msg
+	return true
 }
 
 // Receive receives message from the peer.
@@ -103,7 +119,6 @@ func (c *Connection) close() {
 }
 
 func (c *Connection) runReceivePipeline(ctx context.Context) error {
-	defer c.close()
 	defer close(c.receiveCh)
 
 	for {
@@ -119,7 +134,7 @@ func (c *Connection) runReceivePipeline(ctx context.Context) error {
 			sizeReceived += uint64(n)
 		}
 
-		atomic.StoreUint64(&c.pingTime, uint64(time.Now().Unix()))
+		c.receiveLatch.Store(true)
 
 		size, n := varUInt64(c.receiveBuf[:maxVarUInt64Size])
 		receiveBuf := c.receiveBuf[n:]
@@ -166,33 +181,15 @@ func (c *Connection) runReceivePipeline(ctx context.Context) error {
 }
 
 func (c *Connection) runSendPipeline(ctx context.Context) error {
-	defer c.close()
+	for msg := range c.sendCh {
+		c.sendLatch.Store(true)
 
-	pingSendTicker := time.NewTicker(pingInterval)
-	defer pingSendTicker.Stop()
-
-	pingVerifyTicker := time.NewTicker(pingInterval)
-	defer pingVerifyTicker.Stop()
-
-	var msg Marshalable
-
-	for {
-		select {
-		case <-ctx.Done():
-			return errors.WithStack(ctx.Err())
-		case <-pingVerifyTicker.C:
-			pingTime := atomic.LoadUint64(&c.pingTime)
-			if uint64(time.Now().Unix())-pingTime > missedPings*uint64(pingInterval/time.Second) {
-				return errors.New("connection is dead")
-			}
-			continue
-		case <-pingSendTicker.C:
+		if msg == nil {
+			// ping requested
 			if _, err := c.buf.Write(pingBytes); err != nil {
 				return err
 			}
 			continue
-		case msg = <-c.sendCh:
-			pingSendTicker.Reset(pingInterval)
 		}
 
 		msgID, err := c.config.MsgToIDFunc(msg)
@@ -219,6 +216,8 @@ func (c *Connection) runSendPipeline(ctx context.Context) error {
 			return err
 		}
 	}
+
+	return errors.WithStack(ctx.Err())
 }
 
 func (c *Connection) marshalMessage(msg Marshalable, buf []byte) (size uint64, err error) {
