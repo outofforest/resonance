@@ -47,59 +47,35 @@ func BenchmarkPingPongProton(b *testing.B) {
 
 	ls, err := net.Listen("tcp", "localhost:0")
 	require.NoError(b, err)
-	defer ls.Close()
 
 	var msg1 *proton.Transaction
 	var msg2 *proton.TransactionResponse
 
 	_ = parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
 		spawn("server", parallel.Fail, func(ctx context.Context) error {
-			c, err := ls.Accept()
-			if err != nil {
-				return errors.WithStack(err)
-			}
-			conn := resonance.NewConnection(c.(*net.TCPConn), config)
-
-			return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-				spawn("stream", parallel.Fail, func(ctx context.Context) error {
+			return resonance.RunServer(ctx, ls, config,
+				func(ctx context.Context, c *resonance.Connection[proton.Marshaller]) error {
 					for range b.N {
-						msgAny, _ := conn.Receive()
+						msgAny, _ := c.Receive()
 						msg1 = msgAny.(*proton.Transaction)
-						_ = conn.Send(protonResponse)
+						_ = c.Send(protonResponse)
 					}
 					<-ctx.Done()
 					return nil
 				})
-				spawn("connection", parallel.Fail, conn.Run)
-				return nil
-			})
 		})
 		spawn("client", parallel.Exit, func(ctx context.Context) error {
-			var c net.Conn
-			for {
-				var err error
-				c, err = net.Dial("tcp", ls.Addr().String())
-				if err == nil {
-					break
-				}
-				time.Sleep(100 * time.Millisecond)
-			}
-			conn := resonance.NewConnection(c.(*net.TCPConn), config)
-
-			return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-				spawn("stream", parallel.Exit, func(ctx context.Context) error {
+			return resonance.RunClient(ctx, ls.Addr().String(), config,
+				func(ctx context.Context, c *resonance.Connection[proton.Marshaller]) error {
 					b.StartTimer()
 					for range b.N {
-						_ = conn.Send(protonTx)
-						msgAny, _ := conn.Receive()
+						_ = c.Send(protonTx)
+						msgAny, _ := c.Receive()
 						msg2 = msgAny.(*proton.TransactionResponse)
 					}
 					b.StopTimer()
 					return nil
 				})
-				spawn("connection", parallel.Fail, conn.Run)
-				return nil
-			})
 		})
 		return nil
 	})
@@ -174,55 +150,31 @@ func BenchmarkStreamProton(b *testing.B) {
 
 	ls, err := net.Listen("tcp", "localhost:0")
 	require.NoError(b, err)
-	defer ls.Close()
 
 	var msg2 *proton.Transaction
 
 	_ = parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
 		spawn("server", parallel.Fail, func(ctx context.Context) error {
-			c, err := ls.Accept()
-			if err != nil {
-				return errors.WithStack(err)
-			}
-			conn := resonance.NewConnection(c.(*net.TCPConn), config)
-
-			return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-				spawn("stream", parallel.Fail, func(ctx context.Context) error {
+			return resonance.RunServer(ctx, ls, config,
+				func(ctx context.Context, c *resonance.Connection[proton.Marshaller]) error {
 					for range b.N {
-						_ = conn.Send(protonTx)
+						_ = c.Send(protonTx)
 					}
 					<-ctx.Done()
 					return nil
 				})
-				spawn("connection", parallel.Fail, conn.Run)
-				return nil
-			})
 		})
 		spawn("client", parallel.Exit, func(ctx context.Context) error {
-			var c net.Conn
-			for {
-				var err error
-				c, err = net.Dial("tcp", ls.Addr().String())
-				if err == nil {
-					break
-				}
-				time.Sleep(100 * time.Millisecond)
-			}
-			conn := resonance.NewConnection(c.(*net.TCPConn), config)
-
-			return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-				spawn("stream", parallel.Exit, func(ctx context.Context) error {
+			return resonance.RunClient(ctx, ls.Addr().String(), config,
+				func(ctx context.Context, c *resonance.Connection[proton.Marshaller]) error {
 					b.StartTimer()
 					for range b.N {
-						msgAny, _ := conn.Receive()
+						msgAny, _ := c.Receive()
 						msg2 = msgAny.(*proton.Transaction)
 					}
 					b.StopTimer()
 					return nil
 				})
-				spawn("connection", parallel.Fail, conn.Run)
-				return nil
-			})
 		})
 		return nil
 	})
