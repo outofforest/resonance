@@ -4,8 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/outofforest/parallel"
 	"github.com/stretchr/testify/require"
+
+	"github.com/outofforest/parallel"
 )
 
 // NewParallel returns new parallel group to be used in tests.

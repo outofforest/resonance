@@ -9,14 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/outofforest/parallel"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/outofforest/logger"
-
+	"github.com/outofforest/parallel"
 	"github.com/outofforest/resonance"
 	"github.com/outofforest/resonance/compare/protobuf"
 	"github.com/outofforest/resonance/compare/proton"
@@ -289,7 +288,10 @@ func (s *transactionsServer) SendTransactions(req protobuf.Transactions_SendTran
 	return req.Send(protobufResponse)
 }
 
-func (s *transactionsServer) StreamTransactions(req *protobuf.SubscribeTransactionsRequest, stream grpc.ServerStreamingServer[protobuf.Transaction]) error {
+func (s *transactionsServer) StreamTransactions(
+	req *protobuf.SubscribeTransactionsRequest,
+	stream grpc.ServerStreamingServer[protobuf.Transaction],
+) error {
 	for {
 		if err := stream.Send(protobufMsg); err != nil {
 			return err
@@ -307,6 +309,7 @@ var protonTx = func() *proton.Transaction {
 			EdgeNode: "my.edge.node.invalid",
 			Signature: proton.Signature{
 				Algorithm: "ed25519",
+				//nolint:lll
 				Signature: "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
 			},
 			Properties: map[string]string{
@@ -334,6 +337,7 @@ var protobufMsg = func() *protobuf.Transaction {
 			EdgeNode: "my.edge.node.invalid",
 			Signature: &protobuf.Signature{
 				Algorithm: "ed25519",
+				//nolint:lll
 				Signature: "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
 			},
 			Properties: map[string]string{
