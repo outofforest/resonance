@@ -3,9 +3,9 @@ package resonance
 import (
 	"testing"
 
-	"github.com/outofforest/parallel"
 	"github.com/stretchr/testify/require"
 
+	"github.com/outofforest/parallel"
 	"github.com/outofforest/resonance/pkg/sim"
 	"github.com/outofforest/resonance/test"
 )

@@ -7,9 +7,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"github.com/outofforest/parallel"
 	"github.com/outofforest/proton"
-	"github.com/pkg/errors"
 )
 
 const (

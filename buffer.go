@@ -4,9 +4,10 @@ import (
 	"context"
 	"io"
 
+	"github.com/pkg/errors"
+
 	"github.com/outofforest/parallel"
 	"github.com/outofforest/spin"
-	"github.com/pkg/errors"
 )
 
 // Peer represents the connected peer.
