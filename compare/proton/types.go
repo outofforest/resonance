@@ -1,5 +1,13 @@
 package proton
 
+// SignatureAlgorithm is the signature algorithm.
+type SignatureAlgorithm uint8
+
+// Signature algorithms.
+const (
+	SignatureAlgorithmED25519 SignatureAlgorithm = iota
+)
+
 // TransactionHeader message definition.
 type TransactionHeader struct {
 	Properties map[string]string
@@ -9,13 +17,13 @@ type TransactionHeader struct {
 
 // Signature message definition.
 type Signature struct {
-	Algorithm string
-	Signature string
+	Algorithm SignatureAlgorithm
+	Signature [64]byte
 }
 
 // Transaction message definition.
 type Transaction struct {
-	Hash    string
+	Hash    [16]byte
 	Payload []byte
 	GasUsed int64
 	Header  TransactionHeader
@@ -23,7 +31,7 @@ type Transaction struct {
 
 // TransactionResponse message definition.
 type TransactionResponse struct {
-	Hash    string
+	Hash    [16]byte
 	Success bool
 	Message string
 }

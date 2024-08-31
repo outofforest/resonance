@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	pingInterval = 2 * time.Second
-	missedPings  = 5
+	pingInterval             = 2 * time.Second
+	missedPings              = 5
+	receiveBufSizeMultiplier = 100
 )
 
 var pingBytes = bytes.Repeat([]byte{0x00}, maxVarUInt64Size)
@@ -28,14 +29,15 @@ type Config[M proton.Marshaller] struct {
 
 // NewConnection creates new connection.
 func NewConnection[M proton.Marshaller](peer Peer, config Config[M]) *Connection[M] {
+	bufferSize := config.MaxMessageSize + 2*maxVarUInt64Size
 	return &Connection[M]{
 		peer:       peer,
 		config:     config,
 		buf:        NewPeerBuffer(),
 		receiveCh:  make(chan any, 1),
 		sendCh:     make(chan proton.Marshallable, 1),
-		sendBuf:    make([]byte, config.MaxMessageSize+2*maxVarUInt64Size),
-		receiveBuf: make([]byte, config.MaxMessageSize+2*maxVarUInt64Size),
+		bufferSize: bufferSize,
+		sendBuf:    make([]byte, bufferSize),
 	}
 }
 
@@ -48,6 +50,7 @@ type Connection[M proton.Marshaller] struct {
 	sendLatch, receiveLatch atomic.Bool
 	receiveCh               chan any
 	sendCh                  chan proton.Marshallable
+	bufferSize              uint64
 	sendBuf, receiveBuf     []byte
 }
 
@@ -114,6 +117,10 @@ func (c *Connection[M]) runReceivePipeline(ctx context.Context) error {
 	defer close(c.receiveCh)
 
 	for {
+		if uint64(len(c.receiveBuf)) < c.bufferSize {
+			c.receiveBuf = make([]byte, receiveBufSizeMultiplier*c.bufferSize)
+		}
+
 		var sizeReceived uint64
 		for sizeReceived < maxVarUInt64Size {
 			n, err := c.buf.Read(c.receiveBuf[sizeReceived:maxVarUInt64Size])
@@ -140,19 +147,19 @@ func (c *Connection[M]) runReceivePipeline(ctx context.Context) error {
 				size, c.config.MaxMessageSize)
 		}
 
-		totalReceived := sizeReceived - n
-		for totalReceived < size {
-			n, err := c.buf.Read(receiveBuf[totalReceived:size])
+		msgReceivedSize := sizeReceived - n
+		for msgReceivedSize < size {
+			n, err := c.buf.Read(receiveBuf[msgReceivedSize:size])
 			if errors.Is(err, io.EOF) {
 				return errors.WithStack(ctx.Err())
 			}
 			if err != nil {
 				return err
 			}
-			totalReceived += uint64(n)
+			msgReceivedSize += uint64(n)
 		}
 
-		msgID, n := varUInt64(receiveBuf[:totalReceived])
+		msgID, n := varUInt64(receiveBuf[:msgReceivedSize])
 		msg, msgSize, err := c.config.Marshaller.Unmarshal(msgID, receiveBuf[n:size])
 		if err != nil {
 			return err
@@ -163,6 +170,7 @@ func (c *Connection[M]) runReceivePipeline(ctx context.Context) error {
 			return errors.Errorf("expected message size %d, got %d", expectedSize, msgSize)
 		}
 
+		c.receiveBuf = receiveBuf[msgReceivedSize:]
 		c.receiveCh <- msg
 	}
 }
