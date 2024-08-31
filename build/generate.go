@@ -19,8 +19,6 @@ func generate(_ context.Context, _ types.DepsFunc) error {
 
 	return proton.Generate(
 		"compare/proton/types.proton.go",
-		compareproton.Signature{},
-		compareproton.TransactionHeader{},
 		compareproton.Transaction{},
 		compareproton.TransactionResponse{},
 	)

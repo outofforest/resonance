@@ -9,7 +9,7 @@ replace (
 
 require (
 	github.com/outofforest/build/v2 v2.2.0
-	github.com/outofforest/proton v0.4.3
+	github.com/outofforest/proton v0.5.0
 	github.com/outofforest/resonance v0.1.0
 	github.com/outofforest/resonance/compare v0.0.0-20240826120220-1d1c57997545
 	github.com/outofforest/tools v1.0.2
