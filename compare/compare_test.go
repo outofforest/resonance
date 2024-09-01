@@ -268,9 +268,15 @@ var protonTx = func() *proton.Transaction {
 					0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
 				},
 			},
-			Properties: map[string]string{
-				"property1": "ccccccccccccccccccccccccccccccccccccccccccccc",
-				"property2": "ddddddddddddddddddddddddddddddddddddddddddddd",
+			Properties: []proton.Property{
+				{
+					Key:   "property1",
+					Value: "ccccccccccccccccccccccccccccccccccccccccccccc",
+				},
+				{
+					Key:   "property2",
+					Value: "ddddddddddddddddddddddddddddddddddddddddddddd",
+				},
 			},
 		},
 		Payload: payload,
