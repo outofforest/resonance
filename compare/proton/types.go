@@ -8,9 +8,15 @@ const (
 	SignatureAlgorithmED25519 SignatureAlgorithm = iota
 )
 
+// Property represents transaction property.
+type Property struct {
+	Key   string
+	Value string
+}
+
 // TransactionHeader message definition.
 type TransactionHeader struct {
-	Properties map[string]string
+	Properties []Property
 	EdgeNode   string
 	Signature  Signature
 }
