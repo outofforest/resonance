@@ -34,8 +34,8 @@ func NewConnection[M proton.Marshaller](peer Peer, config Config[M]) *Connection
 		peer:       peer,
 		config:     config,
 		buf:        NewPeerBuffer(),
-		receiveCh:  make(chan any, 1),
-		sendCh:     make(chan proton.Marshallable, 1),
+		receiveCh:  make(chan any, 100),
+		sendCh:     make(chan proton.Marshallable, 100),
 		bufferSize: bufferSize,
 		sendBuf:    make([]byte, bufferSize),
 	}
