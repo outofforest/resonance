@@ -7,7 +7,7 @@ require (
 	github.com/outofforest/mass v0.1.2
 	github.com/outofforest/parallel v0.2.3
 	github.com/outofforest/proton v0.5.1
-	github.com/outofforest/spin v0.2.2
+	github.com/outofforest/spin v0.2.3
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.9.0
 )
