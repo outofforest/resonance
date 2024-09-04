@@ -8,7 +8,7 @@ require (
 	github.com/outofforest/logger v0.5.4
 	github.com/outofforest/mass v0.2.1
 	github.com/outofforest/parallel v0.2.3
-	github.com/outofforest/proton v0.7.0
+	github.com/outofforest/proton v0.7.1
 	github.com/outofforest/resonance v0.1.0
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.9.0
@@ -18,7 +18,7 @@ require (
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/outofforest/spin v0.2.3 // indirect
+	github.com/outofforest/spin v0.3.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/ridge/must v0.6.0 // indirect
 	github.com/samber/lo v1.47.0 // indirect
