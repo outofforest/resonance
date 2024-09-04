@@ -41,8 +41,8 @@ func BenchmarkPingPongProton(b *testing.B) {
 	b.Cleanup(cancel)
 
 	config := resonance.Config[proton.Marshaller]{
-		MaxMessageSize: protonTx.Size(),
-		Marshaller:     proton.NewMarshaller(1000),
+		MaxMessageSize:    protonTx.Size(),
+		MarshallerFactory: proton.NewMarshaller,
 	}
 
 	ls, err := net.Listen("tcp", "localhost:0")
@@ -144,8 +144,8 @@ func BenchmarkStreamProton(b *testing.B) {
 	b.Cleanup(cancel)
 
 	config := resonance.Config[proton.Marshaller]{
-		MaxMessageSize: protonTx.Size(),
-		Marshaller:     proton.NewMarshaller(1000),
+		MaxMessageSize:    protonTx.Size(),
+		MarshallerFactory: proton.NewMarshaller,
 	}
 
 	ls, err := net.Listen("tcp", "localhost:0")

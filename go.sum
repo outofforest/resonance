@@ -15,8 +15,8 @@ github.com/outofforest/mass v0.2.1 h1:oIzOnoTJqN8eVXo5jxk1htOhW7bL7hy2JHrvnTsfvt
 github.com/outofforest/mass v0.2.1/go.mod h1:rqr19KwYSKncmsmZCmMatTsg8pI+ElxerH9v1SGU1CQ=
 github.com/outofforest/parallel v0.2.3 h1:DRIgHr7XTL4LLgsTqrj041kulv4ajtbCkRbkOG5psWY=
 github.com/outofforest/parallel v0.2.3/go.mod h1:cu210xIjJtOMXR2ERzEcNA2kr0Z0xfZjSKw2jTxAQ2E=
-github.com/outofforest/proton v0.7.1 h1:L/Od5LVEyJ1g+4gIhQlH5RrpZOZLXHgL4aqnwB3mZBI=
-github.com/outofforest/proton v0.7.1/go.mod h1:NybzOVfyZ2yJhNXSDYcnSkDumfiWwgBaEtryTcMo4+8=
+github.com/outofforest/proton v0.7.2 h1:DSG3fjm0JrdTo3yNZkjVHhgbg02z0YsNM1REjgWxlp8=
+github.com/outofforest/proton v0.7.2/go.mod h1:NybzOVfyZ2yJhNXSDYcnSkDumfiWwgBaEtryTcMo4+8=
 github.com/outofforest/spin v0.3.1 h1:iF1t4zgbt7KaarrnBqmYWMfoSichqY4/KiKMC/dE524=
 github.com/outofforest/spin v0.3.1/go.mod h1:oc8xNOnNR0R43eCmyFd00qBtL1r8mG+qW/8lihSAhmI=
 github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
