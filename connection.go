@@ -23,8 +23,8 @@ var pingBytes = bytes.Repeat([]byte{0x00}, maxVarUInt64Size)
 
 // Config is the configuration of connection.
 type Config[M proton.Marshaller] struct {
-	MaxMessageSize uint64
-	Marshaller     M
+	MaxMessageSize    uint64
+	MarshallerFactory func(capacity uint64) M
 }
 
 // NewConnection creates new connection.
@@ -33,6 +33,7 @@ func NewConnection[M proton.Marshaller](peer Peer, config Config[M]) *Connection
 	return &Connection[M]{
 		peer:       peer,
 		config:     config,
+		marshaller: config.MarshallerFactory(1000),
 		buf:        NewPeerBuffer(),
 		receiveCh:  make(chan any, 500),
 		sendCh:     make(chan proton.Marshallable, 500),
@@ -43,8 +44,9 @@ func NewConnection[M proton.Marshaller](peer Peer, config Config[M]) *Connection
 
 // Connection allows to communicate with the peer.
 type Connection[M proton.Marshaller] struct {
-	peer   Peer
-	config Config[M]
+	peer       Peer
+	config     Config[M]
+	marshaller M
 
 	buf                     PeerBuffer
 	sendLatch, receiveLatch atomic.Bool
@@ -160,7 +162,7 @@ func (c *Connection[M]) runReceivePipeline(ctx context.Context) error {
 		}
 
 		msgID, n := varUInt64(receiveBuf[:msgReceivedSize])
-		msg, msgSize, err := c.config.Marshaller.Unmarshal(msgID, receiveBuf[n:size])
+		msg, msgSize, err := c.marshaller.Unmarshal(msgID, receiveBuf[n:size])
 		if err != nil {
 			return err
 		}
@@ -187,7 +189,7 @@ func (c *Connection[M]) runSendPipeline(ctx context.Context) error {
 			continue
 		}
 
-		msgID, msgSize, err := c.config.Marshaller.Marshal(msg, c.sendBuf[2*maxVarUInt64Size:])
+		msgID, msgSize, err := c.marshaller.Marshal(msg, c.sendBuf[2*maxVarUInt64Size:])
 		if err != nil {
 			return err
 		}

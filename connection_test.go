@@ -16,8 +16,8 @@ func TestConnection(t *testing.T) {
 	requireT := require.New(t)
 
 	config := Config[test.Marshaller]{
-		MaxMessageSize: 1024,
-		Marshaller:     test.NewMarshaller(100),
+		MaxMessageSize:    1024,
+		MarshallerFactory: test.NewMarshaller,
 	}
 
 	peer := NewPeerBuffer()
