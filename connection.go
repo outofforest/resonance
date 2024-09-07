@@ -106,6 +106,18 @@ func (c *Connection[M]) Send(msg proton.Marshallable) bool {
 	return true
 }
 
+// SendIfPossible sends a message if there is space available in the queue.
+func (c *Connection[M]) SendIfPossible(msg proton.Marshallable) (bool, bool) {
+	defer recover() //nolint:errcheck // Error doesn't matter here
+
+	select {
+	case c.sendCh <- msg:
+		return true, true
+	default:
+		return false, true
+	}
+}
+
 func (c *Connection[M]) close() {
 	_ = c.peer.Close()
 	_ = c.buf.Close()
