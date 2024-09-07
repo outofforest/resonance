@@ -17,7 +17,7 @@ func RunServer[M proton.Marshaller](
 	ctx context.Context,
 	ls net.Listener,
 	config Config[M],
-	handler func(ctx context.Context, c *Connection[M]) error,
+	handler func(ctx context.Context, recvCh <-chan any, c *Connection[M]) error,
 ) error {
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
 		spawn("listener", parallel.Fail, func(ctx context.Context) error {
@@ -27,13 +27,23 @@ func RunServer[M proton.Marshaller](
 					return errors.WithStack(ctx.Err())
 				}
 
+				recvCh := config.ReceiveChannel
+				if recvCh == nil {
+					recvCh = make(chan any, 500)
+				}
+
 				tcpConn := conn.(*net.TCPConn)
 				spawn("client-"+tcpConn.RemoteAddr().String(), parallel.Continue, func(ctx context.Context) error {
-					c := NewConnection(tcpConn, config)
+					c := NewConnection(tcpConn, config, recvCh)
+
+					if handler == nil {
+						return c.Run(ctx)
+					}
+
 					_ = parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
 						spawn("connection", parallel.Fail, c.Run)
 						spawn("handler", parallel.Exit, func(ctx context.Context) error {
-							return handler(ctx, c)
+							return handler(ctx, recvCh, c)
 						})
 						return nil
 					})
@@ -57,7 +67,7 @@ func RunClient[M proton.Marshaller](
 	ctx context.Context,
 	addr string,
 	config Config[M],
-	handler func(ctx context.Context, c *Connection[M]) error,
+	handler func(ctx context.Context, recvCh <-chan any, c *Connection[M]) error,
 ) error {
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
 		retryCtx, retryCancel := context.WithTimeout(ctx, 20*time.Second)
@@ -76,11 +86,21 @@ func RunClient[M proton.Marshaller](
 			return nil
 		}
 
-		c := NewConnection(tcpConn, config)
+		recvCh := config.ReceiveChannel
+		if recvCh == nil {
+			recvCh = make(chan any, 500)
+		}
+
+		c := NewConnection(tcpConn, config, recvCh)
+
+		if handler == nil {
+			return c.Run(ctx)
+		}
+
 		return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
 			spawn("connection", parallel.Fail, c.Run)
 			spawn("handler", parallel.Exit, func(ctx context.Context) error {
-				return handler(ctx, c)
+				return handler(ctx, recvCh, c)
 			})
 			return nil
 		})
