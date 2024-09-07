@@ -19,8 +19,8 @@ github.com/outofforest/mass v0.2.1 h1:oIzOnoTJqN8eVXo5jxk1htOhW7bL7hy2JHrvnTsfvt
 github.com/outofforest/mass v0.2.1/go.mod h1:rqr19KwYSKncmsmZCmMatTsg8pI+ElxerH9v1SGU1CQ=
 github.com/outofforest/parallel v0.2.3 h1:DRIgHr7XTL4LLgsTqrj041kulv4ajtbCkRbkOG5psWY=
 github.com/outofforest/parallel v0.2.3/go.mod h1:cu210xIjJtOMXR2ERzEcNA2kr0Z0xfZjSKw2jTxAQ2E=
-github.com/outofforest/proton v0.7.3 h1:/97KBEBFV7LUixQ13l5wxE2fZqoPzHseNkrkRVA6mR8=
-github.com/outofforest/proton v0.7.3/go.mod h1:NybzOVfyZ2yJhNXSDYcnSkDumfiWwgBaEtryTcMo4+8=
+github.com/outofforest/proton v0.7.4 h1:4g/mSuYw4hKITKa/xTwQCgfnlvGNNU1quj10tKXQuz0=
+github.com/outofforest/proton v0.7.4/go.mod h1:t4T/PFffxSFyWHPn/75rHB03ssDJhStSszp5rq5FrQA=
 github.com/outofforest/run v0.6.0 h1:t/3vAodvU5L5vJ3BB0qRgfviX+T3JJmLgPN6G2WQs3U=
 github.com/outofforest/run v0.6.0/go.mod h1:l7TAtA/zG+7JEH017Qrfm7gzmMyM0gjd+CereJdJSpI=
 github.com/outofforest/tools v1.0.2 h1:EE+rasbu44NEX0ML7HtyNaeKdBT3CwEEURKMxGgJgoM=
@@ -77,8 +77,8 @@ golang.org/x/sys v0.0.0-20210510120138-977fb7262007/go.mod h1:oPkhp1MJrh7nUepCBc
 golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1/go.mod h1:bj7SfCRtBDWHUb9snDiAeCFNEtKQo2Wmx5Cou7ajbmo=
 golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.3.3/go.mod h1:5Zoc/QRtKVWzQhOtBMvqHzDpF6irO9z98xDceosuGiQ=
-golang.org/x/text v0.17.0 h1:XtiM5bkSOt+ewxlOE/aE/AKEHibwj/6gvWMl9Rsh0Qc=
-golang.org/x/text v0.17.0/go.mod h1:BuEKDfySbSR4drPmRPG/7iBdf8hvFMuRexcpahXilzY=
+golang.org/x/text v0.18.0 h1:XvMDiNzPAl0jr17s6W9lcaIhGUfUORdGCNsuLmPG224=
+golang.org/x/text v0.18.0/go.mod h1:BuEKDfySbSR4drPmRPG/7iBdf8hvFMuRexcpahXilzY=
 golang.org/x/tools v0.0.0-20180917221912-90fa682c2a6e/go.mod h1:n7NCudcB/nEzxVGmLbDWY5pfWTLqBcC2KZ6jyYvM4mQ=
 golang.org/x/tools v0.0.0-20190311212946-11955173bddd/go.mod h1:LCzVGOaR6xXOjkQ3onu1FJEFr0SW1gC7cKk1uF8kGRs=
 golang.org/x/tools v0.0.0-20191119224855-298f0cb1881e/go.mod h1:b+2E5dAYhXwXZwtnZ6UAqBI28+e2cm9otk0dWdXHAEo=

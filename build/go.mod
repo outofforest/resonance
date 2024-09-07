@@ -9,7 +9,7 @@ replace (
 
 require (
 	github.com/outofforest/build/v2 v2.2.0
-	github.com/outofforest/proton v0.7.3
+	github.com/outofforest/proton v0.7.4
 	github.com/outofforest/resonance v0.1.0
 	github.com/outofforest/resonance/compare v0.0.0-20240826120220-1d1c57997545
 	github.com/outofforest/tools v1.0.2
@@ -28,5 +28,5 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
-	golang.org/x/text v0.17.0 // indirect
+	golang.org/x/text v0.18.0 // indirect
 )

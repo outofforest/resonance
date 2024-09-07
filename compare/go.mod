@@ -8,7 +8,7 @@ require (
 	github.com/outofforest/logger v0.5.4
 	github.com/outofforest/mass v0.2.1
 	github.com/outofforest/parallel v0.2.3
-	github.com/outofforest/proton v0.7.3
+	github.com/outofforest/proton v0.7.4
 	github.com/outofforest/resonance v0.1.0
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.9.0
@@ -27,7 +27,7 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/net v0.25.0 // indirect
 	golang.org/x/sys v0.20.0 // indirect
-	golang.org/x/text v0.17.0 // indirect
+	golang.org/x/text v0.18.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240528184218-531527333157 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
