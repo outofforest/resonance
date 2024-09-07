@@ -29,7 +29,7 @@ type Config[M proton.Marshaller] struct {
 }
 
 // NewConnection creates new connection.
-func NewConnection[M proton.Marshaller](peer Peer, config Config[M], recvCh chan<- any) *Connection[M] {
+func NewConnection[M proton.Marshaller](peer Peer, config Config[M], recvCh chan any) *Connection[M] {
 	bufferSize := config.MaxMessageSize + 2*maxVarUInt64Size
 	if recvCh == nil {
 		recvCh = make(chan any, 500)
@@ -54,7 +54,7 @@ type Connection[M proton.Marshaller] struct {
 
 	buf                     PeerBuffer
 	sendLatch, receiveLatch atomic.Bool
-	recvCh                  chan<- any
+	recvCh                  chan any
 	sendCh                  chan proton.Marshallable
 	bufferSize              uint64
 	sendBuf, receiveBuf     []byte
@@ -109,6 +109,8 @@ func (c *Connection[M]) Send(msg proton.Marshallable) bool {
 func (c *Connection[M]) close() {
 	_ = c.peer.Close()
 	_ = c.buf.Close()
+	for range c.recvCh {
+	}
 }
 
 func (c *Connection[M]) runReceivePipeline(ctx context.Context) error {
