@@ -3,8 +3,7 @@ module github.com/outofforest/resonance
 go 1.22
 
 require (
-	github.com/outofforest/logger v0.5.4
-	github.com/outofforest/mass v0.2.1
+	github.com/outofforest/logger v0.5.5
 	github.com/outofforest/parallel v0.2.3
 	github.com/outofforest/proton v0.7.3
 	github.com/outofforest/spin v0.3.1
@@ -15,7 +14,6 @@ require (
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/ridge/must v0.6.0 // indirect
 	github.com/samber/lo v1.47.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
