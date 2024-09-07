@@ -121,7 +121,10 @@ func (c *Connection[M]) SendIfPossible(msg proton.Marshallable) (bool, bool) {
 func (c *Connection[M]) close() {
 	_ = c.peer.Close()
 	_ = c.buf.Close()
-	for range c.recvCh {
+
+	if c.config.ReceiveChannel == nil {
+		for range c.recvCh {
+		}
 	}
 }
 
