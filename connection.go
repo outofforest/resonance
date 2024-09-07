@@ -112,6 +112,10 @@ func (c *Connection[M]) close() {
 }
 
 func (c *Connection[M]) runReceivePipeline(ctx context.Context) error {
+	if c.config.ReceiveChannel == nil {
+		defer close(c.recvCh)
+	}
+
 	for {
 		if uint64(len(c.receiveBuf)) < c.bufferSize {
 			c.receiveBuf = make([]byte, receiveBufSizeMultiplier*c.bufferSize)
