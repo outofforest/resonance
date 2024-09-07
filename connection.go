@@ -25,17 +25,21 @@ var pingBytes = bytes.Repeat([]byte{0x00}, maxVarUInt64Size)
 type Config[M proton.Marshaller] struct {
 	MaxMessageSize    uint64
 	MarshallerFactory func(capacity uint64) M
+	ReceiveChannel    chan any
 }
 
 // NewConnection creates new connection.
-func NewConnection[M proton.Marshaller](peer Peer, config Config[M]) *Connection[M] {
+func NewConnection[M proton.Marshaller](peer Peer, config Config[M], recvCh chan<- any) *Connection[M] {
 	bufferSize := config.MaxMessageSize + 2*maxVarUInt64Size
+	if recvCh == nil {
+		recvCh = make(chan any, 500)
+	}
 	return &Connection[M]{
 		peer:       peer,
 		config:     config,
 		marshaller: config.MarshallerFactory(1000),
 		buf:        NewPeerBuffer(),
-		receiveCh:  make(chan any, 500),
+		recvCh:     recvCh,
 		sendCh:     make(chan proton.Marshallable, 500),
 		bufferSize: bufferSize,
 		sendBuf:    make([]byte, bufferSize),
@@ -50,7 +54,7 @@ type Connection[M proton.Marshaller] struct {
 
 	buf                     PeerBuffer
 	sendLatch, receiveLatch atomic.Bool
-	receiveCh               chan any
+	recvCh                  chan<- any
 	sendCh                  chan proton.Marshallable
 	bufferSize              uint64
 	sendBuf, receiveBuf     []byte
@@ -102,22 +106,12 @@ func (c *Connection[M]) Send(msg proton.Marshallable) bool {
 	return true
 }
 
-// Receive receives message from the peer.
-func (c *Connection[M]) Receive() (any, bool) {
-	msg, ok := <-c.receiveCh
-	return msg, ok
-}
-
 func (c *Connection[M]) close() {
 	_ = c.peer.Close()
 	_ = c.buf.Close()
-	for range c.receiveCh {
-	}
 }
 
 func (c *Connection[M]) runReceivePipeline(ctx context.Context) error {
-	defer close(c.receiveCh)
-
 	for {
 		if uint64(len(c.receiveBuf)) < c.bufferSize {
 			c.receiveBuf = make([]byte, receiveBufSizeMultiplier*c.bufferSize)
@@ -173,7 +167,7 @@ func (c *Connection[M]) runReceivePipeline(ctx context.Context) error {
 		}
 
 		c.receiveBuf = receiveBuf[msgReceivedSize:]
-		c.receiveCh <- msg
+		c.recvCh <- msg
 	}
 }
 

@@ -21,8 +21,11 @@ func TestConnection(t *testing.T) {
 	}
 
 	peer := NewPeerBuffer()
-	c1 := NewConnection(peer, config)
-	c2 := NewConnection(peer.OtherPeer(), config)
+
+	recvCh1 := make(chan any, 500)
+	recvCh2 := make(chan any, 500)
+	c1 := NewConnection(peer, config, recvCh1)
+	c2 := NewConnection(peer.OtherPeer(), config, recvCh2)
 
 	group.Spawn("c1", parallel.Fail, c1.Run)
 	group.Spawn("c2", parallel.Fail, c2.Run)
@@ -33,7 +36,7 @@ func TestConnection(t *testing.T) {
 		}),
 	)
 
-	msg, ok := c2.Receive()
+	msg, ok := <-recvCh2
 	requireT.True(ok)
 
 	requireT.Equal("Hello! I'm peer 1", msg.(*test.Message).Field)
@@ -44,7 +47,7 @@ func TestConnection(t *testing.T) {
 		}),
 	)
 
-	msg, ok = c1.Receive()
+	msg, ok = <-recvCh1
 	requireT.True(ok)
 	requireT.Equal("Hello! I'm peer 2", msg.(*test.Message).Field)
 
@@ -54,7 +57,7 @@ func TestConnection(t *testing.T) {
 		}),
 	)
 
-	msg, ok = c2.Receive()
+	msg, ok = <-recvCh2
 	requireT.True(ok)
 	requireT.Equal("Good to see you!", msg.(*test.Message).Field)
 }

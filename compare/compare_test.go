@@ -54,9 +54,9 @@ func BenchmarkPingPongProton(b *testing.B) {
 	_ = parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
 		spawn("server", parallel.Fail, func(ctx context.Context) error {
 			return resonance.RunServer(ctx, ls, config,
-				func(ctx context.Context, c *resonance.Connection[proton.Marshaller]) error {
+				func(ctx context.Context, recvCh <-chan any, c *resonance.Connection[proton.Marshaller]) error {
 					for range b.N {
-						msgAny, _ := c.Receive()
+						msgAny := <-recvCh
 						msg1 = msgAny.(*proton.Transaction)
 						_ = c.Send(protonResponse)
 					}
@@ -66,11 +66,11 @@ func BenchmarkPingPongProton(b *testing.B) {
 		})
 		spawn("client", parallel.Exit, func(ctx context.Context) error {
 			return resonance.RunClient(ctx, ls.Addr().String(), config,
-				func(ctx context.Context, c *resonance.Connection[proton.Marshaller]) error {
+				func(ctx context.Context, recvCh <-chan any, c *resonance.Connection[proton.Marshaller]) error {
 					b.StartTimer()
 					for range b.N {
 						_ = c.Send(protonTx)
-						msgAny, _ := c.Receive()
+						msgAny := <-recvCh
 						msg2 = msgAny.(*proton.TransactionResponse)
 					}
 					b.StopTimer()
@@ -156,7 +156,7 @@ func BenchmarkStreamProton(b *testing.B) {
 	_ = parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
 		spawn("server", parallel.Fail, func(ctx context.Context) error {
 			return resonance.RunServer(ctx, ls, config,
-				func(ctx context.Context, c *resonance.Connection[proton.Marshaller]) error {
+				func(ctx context.Context, recvCh <-chan any, c *resonance.Connection[proton.Marshaller]) error {
 					for range b.N {
 						_ = c.Send(protonTx)
 					}
@@ -166,10 +166,10 @@ func BenchmarkStreamProton(b *testing.B) {
 		})
 		spawn("client", parallel.Exit, func(ctx context.Context) error {
 			return resonance.RunClient(ctx, ls.Addr().String(), config,
-				func(ctx context.Context, c *resonance.Connection[proton.Marshaller]) error {
+				func(ctx context.Context, recvCh <-chan any, c *resonance.Connection[proton.Marshaller]) error {
 					b.StartTimer()
 					for range b.N {
-						msgAny, _ := c.Receive()
+						msgAny := <-recvCh
 						msg2 = msgAny.(*proton.Transaction)
 					}
 					b.StopTimer()
