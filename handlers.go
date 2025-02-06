@@ -33,7 +33,7 @@ func RunServer[M proton.Marshaller](
 				}
 
 				tcpConn := conn.(*net.TCPConn)
-				spawn("client-"+tcpConn.RemoteAddr().String(), parallel.Continue, func(ctx context.Context) error {
+				spawn("client", parallel.Continue, func(ctx context.Context) error {
 					c := NewConnection(tcpConn, config, recvCh)
 
 					if handler == nil {
