@@ -77,13 +77,13 @@ func RunClient[M proton.Marshaller](
 		err := retry.Do(retryCtx, time.Second, func() error {
 			conn, err := net.Dial("tcp", addr)
 			if err != nil {
-				return retry.Retryable(err)
+				return retry.Retryable(errors.WithStack(err))
 			}
 			tcpConn = conn.(*net.TCPConn)
 			return nil
 		})
 		if err != nil {
-			return nil
+			return err
 		}
 
 		recvCh := config.ReceiveChannel
