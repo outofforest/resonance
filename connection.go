@@ -141,10 +141,11 @@ func (c *Connection[M]) runReceivePipeline(ctx context.Context) error {
 		var sizeReceived uint64
 		for sizeReceived < maxVarUInt64Size {
 			n, err := c.buf.Read(c.receiveBuf[sizeReceived:maxVarUInt64Size])
-			if errors.Is(err, io.EOF) {
+			switch {
+			case err == nil:
+			case errors.Is(err, io.EOF) || ctx.Err() != nil:
 				return errors.WithStack(ctx.Err())
-			}
-			if err != nil {
+			default:
 				return err
 			}
 			sizeReceived += uint64(n)
