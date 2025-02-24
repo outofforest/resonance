@@ -8,3 +8,7 @@ updates:
     directory: "/build"
     schedule:
       interval: "daily"
+  - package-ecosystem: "gomod"
+    directory: "/compare"
+    schedule:
+      interval: "daily"

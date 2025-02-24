@@ -40,7 +40,7 @@ func NewConnection[M proton.Marshaller](peer Peer, config Config[M], recvCh chan
 		marshaller: config.MarshallerFactory(1000),
 		buf:        NewPeerBuffer(),
 		recvCh:     recvCh,
-		sendCh:     make(chan proton.Marshallable, 500),
+		sendCh:     make(chan any, 500),
 		bufferSize: bufferSize,
 		sendBuf:    make([]byte, bufferSize),
 	}
@@ -55,7 +55,7 @@ type Connection[M proton.Marshaller] struct {
 	buf                     PeerBuffer
 	sendLatch, receiveLatch atomic.Bool
 	recvCh                  chan any
-	sendCh                  chan proton.Marshallable
+	sendCh                  chan any
 	bufferSize              uint64
 	sendBuf, receiveBuf     []byte
 }
@@ -99,7 +99,7 @@ func (c *Connection[M]) Run(ctx context.Context) error {
 }
 
 // Send sends message to the peer.
-func (c *Connection[M]) Send(msg proton.Marshallable) bool {
+func (c *Connection[M]) Send(msg any) bool {
 	defer recover() //nolint:errcheck // Error doesn't matter here
 
 	c.sendCh <- msg
@@ -107,7 +107,7 @@ func (c *Connection[M]) Send(msg proton.Marshallable) bool {
 }
 
 // SendIfPossible sends a message if there is space available in the queue.
-func (c *Connection[M]) SendIfPossible(msg proton.Marshallable) (bool, bool) {
+func (c *Connection[M]) SendIfPossible(msg any) (bool, bool) {
 	defer recover() //nolint:errcheck // Error doesn't matter here
 
 	select {

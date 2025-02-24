@@ -1,8 +1,6 @@
 package main
 
 import (
-	me "build"
-
 	"github.com/outofforest/build/v2"
 	"github.com/outofforest/build/v2/pkg/tools/git"
 	"github.com/outofforest/tools"
@@ -14,7 +12,6 @@ func main() {
 		build.Commands,
 		git.Commands,
 		golang.Commands,
-		me.Commands,
 	)
 	tools.Main()
 }
