@@ -100,7 +100,9 @@ func (c *Connection[M]) Run(ctx context.Context) error {
 
 // Send sends message to the peer.
 func (c *Connection[M]) Send(msg any) bool {
-	defer recover() //nolint:errcheck // Error doesn't matter here
+	defer func() {
+		_ = recover()
+	}()
 
 	c.sendCh <- msg
 	return true
@@ -108,7 +110,9 @@ func (c *Connection[M]) Send(msg any) bool {
 
 // SendIfPossible sends a message if there is space available in the queue.
 func (c *Connection[M]) SendIfPossible(msg any) (bool, bool) {
-	defer recover() //nolint:errcheck // Error doesn't matter here
+	defer func() {
+		_ = recover()
+	}()
 
 	select {
 	case c.sendCh <- msg:
