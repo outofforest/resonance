@@ -70,12 +70,12 @@ func RunClient[M proton.Marshaller](
 	handler func(ctx context.Context, recvCh <-chan any, c *Connection[M]) error,
 ) error {
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-		retryCtx, retryCancel := context.WithTimeout(ctx, 20*time.Second)
+		retryCtx, retryCancel := context.WithTimeout(ctx, 10*time.Second)
 		defer retryCancel()
 
 		var tcpConn *net.TCPConn
 		err := retry.Do(retryCtx, time.Second, func() error {
-			conn, err := net.Dial("tcp", addr)
+			conn, err := net.DialTimeout("tcp", addr, time.Second)
 			if err != nil {
 				return retry.Retryable(errors.WithStack(err))
 			}
