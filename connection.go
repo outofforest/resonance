@@ -14,9 +14,8 @@ import (
 )
 
 const (
-	pingInterval             = 2 * time.Second
-	missedPings              = 5
-	receiveBufSizeMultiplier = 100
+	pingInterval = 2 * time.Second
+	missedPings  = 5
 )
 
 var pingBytes = bytes.Repeat([]byte{0x00}, maxVarUInt64Size)
@@ -24,7 +23,7 @@ var pingBytes = bytes.Repeat([]byte{0x00}, maxVarUInt64Size)
 // Config is the configuration of connection.
 type Config[M proton.Marshaller] struct {
 	MaxMessageSize    uint64
-	MarshallerFactory func(capacity uint64) M
+	MarshallerFactory func() M
 	ReceiveChannel    chan any
 }
 
@@ -32,17 +31,16 @@ type Config[M proton.Marshaller] struct {
 func NewConnection[M proton.Marshaller](peer Peer, config Config[M], recvCh chan any) *Connection[M] {
 	bufferSize := config.MaxMessageSize + 2*maxVarUInt64Size
 	if recvCh == nil {
-		recvCh = make(chan any, 500)
+		recvCh = make(chan any, 50)
 	}
 	return &Connection[M]{
 		peer:       peer,
 		config:     config,
-		marshaller: config.MarshallerFactory(1000),
+		marshaller: config.MarshallerFactory(),
 		buf:        NewPeerBuffer(),
 		recvCh:     recvCh,
-		sendCh:     make(chan any, 500),
+		sendCh:     make(chan any, 50),
 		bufferSize: bufferSize,
-		sendBuf:    make([]byte, bufferSize),
 	}
 }
 
@@ -57,7 +55,6 @@ type Connection[M proton.Marshaller] struct {
 	recvCh                  chan any
 	sendCh                  chan any
 	bufferSize              uint64
-	sendBuf, receiveBuf     []byte
 }
 
 // Run runs the connection.
@@ -108,20 +105,6 @@ func (c *Connection[M]) Send(msg any) bool {
 	return true
 }
 
-// SendIfPossible sends a message if there is space available in the queue.
-func (c *Connection[M]) SendIfPossible(msg any) (bool, bool) {
-	defer func() {
-		_ = recover()
-	}()
-
-	select {
-	case c.sendCh <- msg:
-		return true, true
-	default:
-		return false, true
-	}
-}
-
 func (c *Connection[M]) close() {
 	_ = c.peer.Close()
 	_ = c.buf.Close()
@@ -137,14 +120,12 @@ func (c *Connection[M]) runReceivePipeline(ctx context.Context) error {
 		defer close(c.recvCh)
 	}
 
-	for {
-		if uint64(len(c.receiveBuf)) < c.bufferSize {
-			c.receiveBuf = make([]byte, receiveBufSizeMultiplier*c.bufferSize)
-		}
+	receiveBuf := make([]byte, c.bufferSize)
 
+	for {
 		var sizeReceived uint64
-		for sizeReceived < maxVarUInt64Size {
-			n, err := c.buf.Read(c.receiveBuf[sizeReceived:maxVarUInt64Size])
+		for {
+			n, err := c.buf.Read(receiveBuf[sizeReceived:maxVarUInt64Size])
 			switch {
 			case err == nil:
 			case errors.Is(err, io.EOF) || ctx.Err() != nil:
@@ -153,13 +134,14 @@ func (c *Connection[M]) runReceivePipeline(ctx context.Context) error {
 				return err
 			}
 			sizeReceived += uint64(n)
+			if containsVarUint64(receiveBuf[:sizeReceived]) {
+				break
+			}
 		}
 
 		c.receiveLatch.Store(true)
 
-		size, n := varUInt64(c.receiveBuf[:maxVarUInt64Size])
-		receiveBuf := c.receiveBuf[n:]
-
+		size, n := varUInt64(receiveBuf[:sizeReceived])
 		switch {
 		case size == 0:
 			// ping received
@@ -169,9 +151,11 @@ func (c *Connection[M]) runReceivePipeline(ctx context.Context) error {
 				size, c.config.MaxMessageSize)
 		}
 
+		buf := receiveBuf[n:]
+
 		msgReceivedSize := sizeReceived - n
 		for msgReceivedSize < size {
-			n, err := c.buf.Read(receiveBuf[msgReceivedSize:size])
+			n, err := c.buf.Read(buf[msgReceivedSize:size])
 			if errors.Is(err, io.EOF) {
 				return errors.WithStack(ctx.Err())
 			}
@@ -181,8 +165,8 @@ func (c *Connection[M]) runReceivePipeline(ctx context.Context) error {
 			msgReceivedSize += uint64(n)
 		}
 
-		msgID, n := varUInt64(receiveBuf[:msgReceivedSize])
-		msg, msgSize, err := c.marshaller.Unmarshal(msgID, receiveBuf[n:size])
+		msgID, n := varUInt64(buf[:msgReceivedSize])
+		msg, msgSize, err := c.marshaller.Unmarshal(msgID, buf[n:size])
 		if err != nil {
 			return err
 		}
@@ -192,12 +176,13 @@ func (c *Connection[M]) runReceivePipeline(ctx context.Context) error {
 			return errors.Errorf("expected message size %d, got %d", expectedSize, msgSize)
 		}
 
-		c.receiveBuf = receiveBuf[msgReceivedSize:]
 		c.recvCh <- msg
 	}
 }
 
 func (c *Connection[M]) runSendPipeline(ctx context.Context) error {
+	sendBuf := make([]byte, c.bufferSize)
+
 	for msg := range c.sendCh {
 		c.sendLatch.Store(true)
 
@@ -209,23 +194,23 @@ func (c *Connection[M]) runSendPipeline(ctx context.Context) error {
 			continue
 		}
 
-		msgID, msgSize, err := c.marshaller.Marshal(msg, c.sendBuf[2*maxVarUInt64Size:])
+		msgID, msgSize, err := c.marshaller.Marshal(msg, sendBuf[2*maxVarUInt64Size:])
 		if err != nil {
 			return err
 		}
 
 		msgIDSize := varUInt64Size(msgID)
-		putVarUInt64(c.sendBuf[2*maxVarUInt64Size-msgIDSize:], msgID)
+		putVarUInt64(sendBuf[2*maxVarUInt64Size-msgIDSize:], msgID)
 
 		totalSize := msgIDSize + msgSize
 		bufferStart := 2*maxVarUInt64Size - msgIDSize - varUInt64Size(totalSize)
-		totalSize += putVarUInt64(c.sendBuf[bufferStart:], totalSize)
+		totalSize += putVarUInt64(sendBuf[bufferStart:], totalSize)
 
 		if totalSize < maxVarUInt64Size {
 			totalSize = maxVarUInt64Size
 		}
 
-		if _, err := c.buf.Write(c.sendBuf[bufferStart : bufferStart+totalSize]); err != nil {
+		if _, err := c.buf.Write(sendBuf[bufferStart : bufferStart+totalSize]); err != nil {
 			return err
 		}
 	}
