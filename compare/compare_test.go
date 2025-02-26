@@ -40,7 +40,7 @@ func BenchmarkPingPongProton(b *testing.B) {
 	ctx, cancel := context.WithCancel(logger.WithLogger(context.Background(), logger.New(logger.DefaultConfig)))
 	b.Cleanup(cancel)
 
-	m := proton.NewMarshaller(100)
+	m := proton.NewMarshaller()
 	size, err := m.Size(protonTx)
 	require.NoError(b, err)
 
@@ -147,7 +147,7 @@ func BenchmarkStreamProton(b *testing.B) {
 	ctx, cancel := context.WithCancel(logger.WithLogger(context.Background(), logger.New(logger.DefaultConfig)))
 	b.Cleanup(cancel)
 
-	m := proton.NewMarshaller(100)
+	m := proton.NewMarshaller()
 	size, err := m.Size(protonTx)
 	require.NoError(b, err)
 

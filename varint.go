@@ -135,6 +135,13 @@ func putVarUInt64(b []byte, v uint64) uint64 {
 	}
 }
 
+func containsVarUint64(b []byte) bool {
+	if len(b) == 0 {
+		return false
+	}
+	return len(b) >= maxVarUInt64Size || b[len(b)-1]&0x80 == 0
+}
+
 func varUInt64(b []byte) (uint64, uint64) {
 	v := uint64(b[0] & 0x7F)
 	if b[0]&0x80 == 0 {

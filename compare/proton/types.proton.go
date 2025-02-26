@@ -3,7 +3,6 @@ package proton
 import (
 	"unsafe"
 
-	"github.com/outofforest/mass"
 	"github.com/outofforest/proton"
 	"github.com/pkg/errors"
 )
@@ -16,28 +15,22 @@ const (
 var _ proton.Marshaller = Marshaller{}
 
 // NewMarshaller creates marshaller.
-func NewMarshaller(capacity uint64) Marshaller {
+func NewMarshaller() Marshaller {
 	return Marshaller{
-		mass0: mass.New[TransactionResponse](capacity),
-		mass2: mass.New[Transaction](capacity),
-		mass3: mass.New[Property](capacity),
 	}
 }
 
 // Marshaller marshals and unmarshals messages.
 type Marshaller struct {
-	mass0 *mass.Mass[TransactionResponse]
-	mass2 *mass.Mass[Transaction]
-	mass3 *mass.Mass[Property]
 }
 
 // Size computes the size of marshalled message.
 func (m Marshaller) Size(msg any) (uint64, error) {
 	switch msg2 := msg.(type) {
-	case *TransactionResponse:
-		return size0(msg2), nil
 	case *Transaction:
 		return size2(msg2), nil
+	case *TransactionResponse:
+		return size0(msg2), nil
 	default:
 		return 0, errors.Errorf("unknown message type %T", msg)
 	}
@@ -52,10 +45,10 @@ func (m Marshaller) Marshal(msg any, buf []byte) (retID, retSize uint64, retErr 
 	}()
 
 	switch msg2 := msg.(type) {
-	case *TransactionResponse:
-		return id0, marshal0(msg2, buf), nil
 	case *Transaction:
 		return id2, marshal2(msg2, buf), nil
+	case *TransactionResponse:
+		return id0, marshal0(msg2, buf), nil
 	default:
 		return 0, 0, errors.Errorf("unknown message type %T", msg)
 	}
@@ -70,19 +63,12 @@ func (m Marshaller) Unmarshal(id uint64, buf []byte) (retMsg any, retSize uint64
 	}()
 
 	switch id {
-	case id0:
-		msg := m.mass0.New()
-		return msg, unmarshal0(
-			msg,
-			buf,
-		), nil
 	case id2:
-		msg := m.mass2.New()
-		return msg, unmarshal2(
-			msg,
-			buf,
-			m.mass3,
-		), nil
+		msg := &Transaction{}
+		return msg, unmarshal2(msg, buf), nil
+	case id0:
+		msg := &TransactionResponse{}
+		return msg, unmarshal0(msg, buf), nil
 	default:
 		return nil, 0, errors.Errorf("unknown ID %d", id)
 	}
@@ -293,10 +279,7 @@ func marshal0(m *TransactionResponse, b []byte) uint64 {
 	return o
 }
 
-func unmarshal0(
-	m *TransactionResponse,
-	b []byte,
-) uint64 {
+func unmarshal0(m *TransactionResponse, b []byte) uint64 {
 	var o uint64 = 1
 	{
 		// Hash
@@ -360,10 +343,8 @@ func unmarshal0(
 				l = vi
 			}
 			if l > 0 {
-				m.Message = unsafe.String((*byte)(unsafe.Pointer(&b[o])), l)
+				m.Message = string(b[o:o+l])
 				o += l
-			} else {
-				m.Message = "" 
 			}
 		}
 	}
@@ -783,11 +764,7 @@ func marshal2(m *Transaction, b []byte) uint64 {
 	return o
 }
 
-func unmarshal2(
-	m *Transaction,
-	b []byte,
-	mass3 *mass.Mass[Property],
-) uint64 {
+func unmarshal2(m *Transaction, b []byte) uint64 {
 	var o uint64
 	{
 		// Hash
@@ -845,10 +822,9 @@ func unmarshal2(
 			l = vi
 		}
 		if l > 0 {
-			m.Payload = b[o:o+l]
+			m.Payload = make([]uint8, l)
+			copy(m.Payload, b[o:o+l])
 			o += l
-		} else {
-			m.Payload = nil
 		}
 	}
 	{
@@ -914,11 +890,8 @@ func unmarshal2(
 	{
 		// Header
 
-		o += unmarshal1(
-			&m.Header,
-			b[o:],
-			mass3,
-		)
+		o += unmarshal1(&m.Header, b[o:])
+		
 	}
 
 	return o
@@ -1301,11 +1274,7 @@ func marshal1(m *TransactionHeader, b []byte) uint64 {
 	return o
 }
 
-func unmarshal1(
-	m *TransactionHeader,
-	b []byte,
-	mass3 *mass.Mass[Property],
-) uint64 {
+func unmarshal1(m *TransactionHeader, b []byte) uint64 {
 	var o uint64
 	{
 		// Properties
@@ -1357,15 +1326,11 @@ func unmarshal1(
 			l = vi
 		}
 		if l > 0 {
-			m.Properties = mass3.NewSlice(l)
+			m.Properties = make([]Property, l)
 			for i1 := range l {
-				o += unmarshal3(
-					&m.Properties[i1],
-					b[o:],
-				)
+				o += unmarshal3(&m.Properties[i1], b[o:])
+				
 			}
-		} else {
-			m.Properties = nil
 		}
 	}
 	{
@@ -1419,20 +1384,16 @@ func unmarshal1(
 				l = vi
 			}
 			if l > 0 {
-				m.EdgeNode = unsafe.String((*byte)(unsafe.Pointer(&b[o])), l)
+				m.EdgeNode = string(b[o:o+l])
 				o += l
-			} else {
-				m.EdgeNode = "" 
 			}
 		}
 	}
 	{
 		// Signature
 
-		o += unmarshal4(
-			&m.Signature,
-			b[o:],
-		)
+		o += unmarshal4(&m.Signature, b[o:])
+		
 	}
 
 	return o
@@ -1461,10 +1422,7 @@ func marshal4(m *Signature, b []byte) uint64 {
 	return o
 }
 
-func unmarshal4(
-	m *Signature,
-	b []byte,
-) uint64 {
+func unmarshal4(m *Signature, b []byte) uint64 {
 	var o uint64
 	{
 		// Algorithm
@@ -1851,10 +1809,7 @@ func marshal3(m *Property, b []byte) uint64 {
 	return o
 }
 
-func unmarshal3(
-	m *Property,
-	b []byte,
-) uint64 {
+func unmarshal3(m *Property, b []byte) uint64 {
 	var o uint64
 	{
 		// Key
@@ -1907,10 +1862,8 @@ func unmarshal3(
 				l = vi
 			}
 			if l > 0 {
-				m.Key = unsafe.String((*byte)(unsafe.Pointer(&b[o])), l)
+				m.Key = string(b[o:o+l])
 				o += l
-			} else {
-				m.Key = "" 
 			}
 		}
 	}
@@ -1965,10 +1918,8 @@ func unmarshal3(
 				l = vi
 			}
 			if l > 0 {
-				m.Value = unsafe.String((*byte)(unsafe.Pointer(&b[o])), l)
+				m.Value = string(b[o:o+l])
 				o += l
-			} else {
-				m.Value = "" 
 			}
 		}
 	}

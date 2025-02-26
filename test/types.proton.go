@@ -1,9 +1,6 @@
 package test
 
 import (
-	"unsafe"
-
-	"github.com/outofforest/mass"
 	"github.com/outofforest/proton"
 	"github.com/pkg/errors"
 )
@@ -15,15 +12,13 @@ const (
 var _ proton.Marshaller = Marshaller{}
 
 // NewMarshaller creates marshaller.
-func NewMarshaller(capacity uint64) Marshaller {
+func NewMarshaller() Marshaller {
 	return Marshaller{
-		mass0: mass.New[Message](capacity),
 	}
 }
 
 // Marshaller marshals and unmarshals messages.
 type Marshaller struct {
-	mass0 *mass.Mass[Message]
 }
 
 // Size computes the size of marshalled message.
@@ -62,11 +57,8 @@ func (m Marshaller) Unmarshal(id uint64, buf []byte) (retMsg any, retSize uint64
 
 	switch id {
 	case id0:
-		msg := m.mass0.New()
-		return msg, unmarshal0(
-			msg,
-			buf,
-		), nil
+		msg := &Message{}
+		return msg, unmarshal0(msg, buf), nil
 	default:
 		return nil, 0, errors.Errorf("unknown ID %d", id)
 	}
@@ -262,10 +254,7 @@ func marshal0(m *Message, b []byte) uint64 {
 	return o
 }
 
-func unmarshal0(
-	m *Message,
-	b []byte,
-) uint64 {
+func unmarshal0(m *Message, b []byte) uint64 {
 	var o uint64
 	{
 		// Field
@@ -318,10 +307,8 @@ func unmarshal0(
 				l = vi
 			}
 			if l > 0 {
-				m.Field = unsafe.String((*byte)(unsafe.Pointer(&b[o])), l)
+				m.Field = string(b[o:o+l])
 				o += l
-			} else {
-				m.Field = "" 
 			}
 		}
 	}
