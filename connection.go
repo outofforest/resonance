@@ -1,7 +1,6 @@
 package resonance
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"sync/atomic"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/outofforest/parallel"
 	"github.com/outofforest/proton"
+	"github.com/outofforest/varuint64"
 )
 
 const (
@@ -18,7 +18,7 @@ const (
 	missedPings  = 5
 )
 
-var pingBytes = bytes.Repeat([]byte{0x00}, maxVarUInt64Size)
+var pingBytes = []byte{0x00}
 
 // Config is the configuration of connection.
 type Config[M proton.Marshaller] struct {
@@ -29,7 +29,7 @@ type Config[M proton.Marshaller] struct {
 
 // NewConnection creates new connection.
 func NewConnection[M proton.Marshaller](peer Peer, config Config[M], recvCh chan any) *Connection[M] {
-	bufferSize := config.MaxMessageSize + 2*maxVarUInt64Size
+	bufferSize := config.MaxMessageSize + 2*varuint64.MaxSize
 	if recvCh == nil {
 		recvCh = make(chan any, 50)
 	}
@@ -115,17 +115,28 @@ func (c *Connection[M]) close() {
 	}
 }
 
-func (c *Connection[M]) runReceivePipeline(ctx context.Context) error {
+func (c *Connection[M]) runReceivePipeline(ctx context.Context) (retErr error) {
 	if c.config.ReceiveChannel == nil {
 		defer close(c.recvCh)
 	}
 
 	receiveBuf := make([]byte, c.bufferSize)
+	var start, end uint64
 
 	for {
-		var sizeReceived uint64
+		if end == start {
+			start = 0
+			end = 0
+		} else if start > c.bufferSize-varuint64.MaxSize {
+			copy(receiveBuf, receiveBuf[start:end])
+			end -= start
+			start = 0
+		}
+
+		buf := receiveBuf[start:]
+		sizeReceived := end - start
 		for {
-			n, err := c.buf.Read(receiveBuf[sizeReceived:maxVarUInt64Size])
+			n, err := c.buf.Read(buf[sizeReceived:varuint64.MaxSize])
 			switch {
 			case err == nil:
 			case errors.Is(err, io.EOF) || ctx.Err() != nil:
@@ -134,26 +145,36 @@ func (c *Connection[M]) runReceivePipeline(ctx context.Context) error {
 				return err
 			}
 			sizeReceived += uint64(n)
-			if containsVarUint64(receiveBuf[:sizeReceived]) {
+			if varuint64.Contains(buf[:sizeReceived]) {
 				break
 			}
 		}
 
 		c.receiveLatch.Store(true)
 
-		size, n := varUInt64(receiveBuf[:sizeReceived])
+		size, n := varuint64.Parse(buf[:sizeReceived])
+		end = start + sizeReceived
+		start += n
 		switch {
 		case size == 0:
 			// ping received
 			continue
-		case size > c.config.MaxMessageSize+maxVarUInt64Size:
+		case size > c.config.MaxMessageSize+varuint64.MaxSize:
 			return errors.Errorf("message size %d exceeds allowed maximum %d",
 				size, c.config.MaxMessageSize)
 		}
+		if start == end {
+			start = 0
+			end = 0
+		} else if start > c.bufferSize-size {
+			copy(receiveBuf, receiveBuf[start:end])
+			end -= start
+			start = 0
+		}
 
-		buf := receiveBuf[n:]
+		buf = receiveBuf[start:]
 
-		msgReceivedSize := sizeReceived - n
+		msgReceivedSize := end - start
 		for msgReceivedSize < size {
 			n, err := c.buf.Read(buf[msgReceivedSize:size])
 			if errors.Is(err, io.EOF) {
@@ -164,8 +185,10 @@ func (c *Connection[M]) runReceivePipeline(ctx context.Context) error {
 			}
 			msgReceivedSize += uint64(n)
 		}
+		end = start + msgReceivedSize
+		start += size
 
-		msgID, n := varUInt64(buf[:msgReceivedSize])
+		msgID, n := varuint64.Parse(buf[:size])
 		msg, msgSize, err := c.marshaller.Unmarshal(msgID, buf[n:size])
 		if err != nil {
 			return err
@@ -194,21 +217,17 @@ func (c *Connection[M]) runSendPipeline(ctx context.Context) error {
 			continue
 		}
 
-		msgID, msgSize, err := c.marshaller.Marshal(msg, sendBuf[2*maxVarUInt64Size:])
+		msgID, msgSize, err := c.marshaller.Marshal(msg, sendBuf[2*varuint64.MaxSize:])
 		if err != nil {
 			return err
 		}
 
-		msgIDSize := varUInt64Size(msgID)
-		putVarUInt64(sendBuf[2*maxVarUInt64Size-msgIDSize:], msgID)
+		msgIDSize := varuint64.Size(msgID)
+		varuint64.Put(sendBuf[2*varuint64.MaxSize-msgIDSize:], msgID)
 
 		totalSize := msgIDSize + msgSize
-		bufferStart := 2*maxVarUInt64Size - msgIDSize - varUInt64Size(totalSize)
-		totalSize += putVarUInt64(sendBuf[bufferStart:], totalSize)
-
-		if totalSize < maxVarUInt64Size {
-			totalSize = maxVarUInt64Size
-		}
+		bufferStart := 2*varuint64.MaxSize - msgIDSize - varuint64.Size(totalSize)
+		totalSize += varuint64.Put(sendBuf[bufferStart:], totalSize)
 
 		if _, err := c.buf.Write(sendBuf[bufferStart : bufferStart+totalSize]); err != nil {
 			return err

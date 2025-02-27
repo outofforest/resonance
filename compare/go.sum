@@ -32,6 +32,8 @@ github.com/outofforest/run v0.8.0 h1:p3tSksh6AWzxsZ+baZzeQhgsfugKz6d6RaE7xfQYt5M
 github.com/outofforest/run v0.8.0/go.mod h1:4d6txrC3wfOSFy64bwxZweKUQsccDs9IvtIbAAFAk7E=
 github.com/outofforest/spin v0.3.1 h1:iF1t4zgbt7KaarrnBqmYWMfoSichqY4/KiKMC/dE524=
 github.com/outofforest/spin v0.3.1/go.mod h1:oc8xNOnNR0R43eCmyFd00qBtL1r8mG+qW/8lihSAhmI=
+github.com/outofforest/varuint64 v0.1.1 h1:hUHwUHSTUTZ+/0/YQjC6873ELaikedPnpc8wU8LPhz0=
+github.com/outofforest/varuint64 v0.1.1/go.mod h1:DnZ3EN0sJMPLvh6ISZ3WiklZ56X+b59fVzs+JB+O09M=
 github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
 github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
