@@ -16,12 +16,24 @@ var _ proton.Marshaller = Marshaller{}
 
 // NewMarshaller creates marshaller.
 func NewMarshaller() Marshaller {
-	return Marshaller{
-	}
+	return Marshaller{}
 }
+
 
 // Marshaller marshals and unmarshals messages.
 type Marshaller struct {
+}
+
+// ID returns ID of message type.
+func (m Marshaller) ID(msg any) (uint64, error) {
+	switch msg.(type) {
+	case *Transaction:
+		return id2, nil
+	case *TransactionResponse:
+		return id0, nil
+	default:
+		return 0, errors.Errorf("unknown message type %T", msg)
+	}
 }
 
 // Size computes the size of marshalled message.

@@ -8,16 +8,15 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/outofforest/parallel"
-	"github.com/outofforest/proton"
 	"github.com/outofforest/resonance/pkg/retry"
 )
 
 // RunServer runs server.
-func RunServer[M proton.Marshaller](
+func RunServer(
 	ctx context.Context,
 	ls net.Listener,
-	config Config[M],
-	handler func(ctx context.Context, recvCh <-chan any, c *Connection[M]) error,
+	config Config,
+	handler func(ctx context.Context, c *Connection) error,
 ) error {
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
 		spawn("listener", parallel.Fail, func(ctx context.Context) error {
@@ -27,23 +26,18 @@ func RunServer[M proton.Marshaller](
 					return errors.WithStack(ctx.Err())
 				}
 
-				recvCh := config.ReceiveChannel
-				if recvCh == nil {
-					recvCh = make(chan any, 500)
-				}
-
 				tcpConn := conn.(*net.TCPConn)
 				spawn("client", parallel.Continue, func(ctx context.Context) error {
-					c := NewConnection(tcpConn, config, recvCh)
+					c := NewConnection(tcpConn, config)
 
 					if handler == nil {
-						return c.Run(ctx)
+						return c.run(ctx)
 					}
 
 					_ = parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-						spawn("connection", parallel.Fail, c.Run)
+						spawn("connection", parallel.Fail, c.run)
 						spawn("handler", parallel.Exit, func(ctx context.Context) error {
-							return handler(ctx, recvCh, c)
+							return handler(ctx, c)
 						})
 						return nil
 					})
@@ -63,11 +57,11 @@ func RunServer[M proton.Marshaller](
 }
 
 // RunClient runs client.
-func RunClient[M proton.Marshaller](
+func RunClient(
 	ctx context.Context,
 	addr string,
-	config Config[M],
-	handler func(ctx context.Context, recvCh <-chan any, c *Connection[M]) error,
+	config Config,
+	handler func(ctx context.Context, c *Connection) error,
 ) error {
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
 		retryCtx, retryCancel := context.WithTimeout(ctx, 10*time.Second)
@@ -86,21 +80,16 @@ func RunClient[M proton.Marshaller](
 			return err
 		}
 
-		recvCh := config.ReceiveChannel
-		if recvCh == nil {
-			recvCh = make(chan any, 500)
-		}
-
-		c := NewConnection(tcpConn, config, recvCh)
+		c := NewConnection(tcpConn, config)
 
 		if handler == nil {
-			return c.Run(ctx)
+			return c.run(ctx)
 		}
 
 		return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-			spawn("connection", parallel.Fail, c.Run)
+			spawn("connection", parallel.Fail, c.run)
 			spawn("handler", parallel.Exit, func(ctx context.Context) error {
-				return handler(ctx, recvCh, c)
+				return handler(ctx, c)
 			})
 			return nil
 		})

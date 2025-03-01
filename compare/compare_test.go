@@ -44,9 +44,8 @@ func BenchmarkPingPongProton(b *testing.B) {
 	size, err := m.Size(protonTx)
 	require.NoError(b, err)
 
-	config := resonance.Config[proton.Marshaller]{
-		MaxMessageSize:    size,
-		MarshallerFactory: proton.NewMarshaller,
+	config := resonance.Config{
+		MaxMessageSize: size,
 	}
 
 	ls, err := net.Listen("tcp", "localhost:0")
@@ -58,11 +57,11 @@ func BenchmarkPingPongProton(b *testing.B) {
 	_ = parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
 		spawn("server", parallel.Fail, func(ctx context.Context) error {
 			return resonance.RunServer(ctx, ls, config,
-				func(ctx context.Context, recvCh <-chan any, c *resonance.Connection[proton.Marshaller]) error {
+				func(ctx context.Context, c *resonance.Connection) error {
 					for range b.N {
-						msgAny := <-recvCh
+						msgAny, _ := c.ReceiveProton(m)
 						msg1 = msgAny.(*proton.Transaction)
-						_ = c.Send(protonResponse)
+						_ = c.SendProton(protonResponse, m)
 					}
 					<-ctx.Done()
 					return nil
@@ -70,11 +69,11 @@ func BenchmarkPingPongProton(b *testing.B) {
 		})
 		spawn("client", parallel.Exit, func(ctx context.Context) error {
 			return resonance.RunClient(ctx, ls.Addr().String(), config,
-				func(ctx context.Context, recvCh <-chan any, c *resonance.Connection[proton.Marshaller]) error {
+				func(ctx context.Context, c *resonance.Connection) error {
 					b.StartTimer()
 					for range b.N {
-						_ = c.Send(protonTx)
-						msgAny := <-recvCh
+						_ = c.SendProton(protonTx, m)
+						msgAny, _ := c.ReceiveProton(m)
 						msg2 = msgAny.(*proton.TransactionResponse)
 					}
 					b.StopTimer()
@@ -151,9 +150,8 @@ func BenchmarkStreamProton(b *testing.B) {
 	size, err := m.Size(protonTx)
 	require.NoError(b, err)
 
-	config := resonance.Config[proton.Marshaller]{
-		MaxMessageSize:    size,
-		MarshallerFactory: proton.NewMarshaller,
+	config := resonance.Config{
+		MaxMessageSize: size,
 	}
 
 	ls, err := net.Listen("tcp", "localhost:0")
@@ -164,9 +162,9 @@ func BenchmarkStreamProton(b *testing.B) {
 	_ = parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
 		spawn("server", parallel.Fail, func(ctx context.Context) error {
 			return resonance.RunServer(ctx, ls, config,
-				func(ctx context.Context, recvCh <-chan any, c *resonance.Connection[proton.Marshaller]) error {
+				func(ctx context.Context, c *resonance.Connection) error {
 					for range b.N {
-						_ = c.Send(protonTx)
+						_ = c.SendProton(protonTx, m)
 					}
 					<-ctx.Done()
 					return nil
@@ -174,10 +172,10 @@ func BenchmarkStreamProton(b *testing.B) {
 		})
 		spawn("client", parallel.Exit, func(ctx context.Context) error {
 			return resonance.RunClient(ctx, ls.Addr().String(), config,
-				func(ctx context.Context, recvCh <-chan any, c *resonance.Connection[proton.Marshaller]) error {
+				func(ctx context.Context, c *resonance.Connection) error {
 					b.StartTimer()
 					for range b.N {
-						msgAny := <-recvCh
+						msgAny, _ := c.ReceiveProton(m)
 						msg2 = msgAny.(*proton.Transaction)
 					}
 					b.StopTimer()
