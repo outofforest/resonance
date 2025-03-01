@@ -4,6 +4,7 @@ go 1.23
 
 require (
 	github.com/outofforest/logger v0.6.0
+	github.com/outofforest/mass v0.2.1
 	github.com/outofforest/parallel v0.2.3
 	github.com/outofforest/proton v0.10.1
 	github.com/outofforest/spin v0.3.1
