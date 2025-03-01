@@ -16,50 +16,49 @@ func TestConnectionShortMessages(t *testing.T) {
 	group := sim.NewParallel(ctx, t)
 	requireT := require.New(t)
 
-	config := Config[test.Marshaller]{
-		MaxMessageSize:    1024,
-		MarshallerFactory: test.NewMarshaller,
+	config := Config{
+		MaxMessageSize: 1024,
 	}
+
+	m := test.NewMarshaller()
 
 	peer := NewPeerBuffer()
 
-	recvCh1 := make(chan any, 500)
-	recvCh2 := make(chan any, 500)
-	c1 := NewConnection(peer, config, recvCh1)
-	c2 := NewConnection(peer.OtherPeer(), config, recvCh2)
+	c1 := NewConnection(peer, config)
+	c2 := NewConnection(peer.OtherPeer(), config)
 
-	group.Spawn("c1", parallel.Fail, c1.Run)
-	group.Spawn("c2", parallel.Fail, c2.Run)
+	group.Spawn("c1", parallel.Fail, c1.run)
+	group.Spawn("c2", parallel.Fail, c2.run)
 
 	requireT.True(
-		c1.Send(&test.Message{
+		c1.SendProton(&test.Message{
 			Field: "A",
-		}),
+		}, m),
 	)
 
-	msg, ok := <-recvCh2
-	requireT.True(ok)
+	msg, err := c2.ReceiveProton(m)
+	requireT.NoError(err)
 
 	requireT.Equal("A", msg.(*test.Message).Field)
 
 	requireT.True(
-		c2.Send(&test.Message{
+		c2.SendProton(&test.Message{
 			Field: "B",
-		}),
+		}, m),
 	)
 
-	msg, ok = <-recvCh1
-	requireT.True(ok)
+	msg, err = c1.ReceiveProton(m)
+	requireT.NoError(err)
 	requireT.Equal("B", msg.(*test.Message).Field)
 
 	requireT.True(
-		c1.Send(&test.Message{
+		c1.SendProton(&test.Message{
 			Field: "C",
-		}),
+		}, m),
 	)
 
-	msg, ok = <-recvCh2
-	requireT.True(ok)
+	msg, err = c2.ReceiveProton(m)
+	requireT.NoError(err)
 	requireT.Equal("C", msg.(*test.Message).Field)
 }
 
@@ -68,50 +67,49 @@ func TestConnectionLongMessages(t *testing.T) {
 	group := sim.NewParallel(ctx, t)
 	requireT := require.New(t)
 
-	config := Config[test.Marshaller]{
-		MaxMessageSize:    1024,
-		MarshallerFactory: test.NewMarshaller,
+	config := Config{
+		MaxMessageSize: 1024,
 	}
+
+	m := test.NewMarshaller()
 
 	peer := NewPeerBuffer()
 
-	recvCh1 := make(chan any, 500)
-	recvCh2 := make(chan any, 500)
-	c1 := NewConnection(peer, config, recvCh1)
-	c2 := NewConnection(peer.OtherPeer(), config, recvCh2)
+	c1 := NewConnection(peer, config)
+	c2 := NewConnection(peer.OtherPeer(), config)
 
-	group.Spawn("c1", parallel.Fail, c1.Run)
-	group.Spawn("c2", parallel.Fail, c2.Run)
+	group.Spawn("c1", parallel.Fail, c1.run)
+	group.Spawn("c2", parallel.Fail, c2.run)
 
 	requireT.True(
-		c1.Send(&test.Message{
+		c1.SendProton(&test.Message{
 			Field: longString + "A",
-		}),
+		}, m),
 	)
 
-	msg, ok := <-recvCh2
-	requireT.True(ok)
+	msg, err := c2.ReceiveProton(m)
+	requireT.NoError(err)
 
 	requireT.Equal(longString+"A", msg.(*test.Message).Field)
 
 	requireT.True(
-		c2.Send(&test.Message{
+		c2.SendProton(&test.Message{
 			Field: longString + "B",
-		}),
+		}, m),
 	)
 
-	msg, ok = <-recvCh1
-	requireT.True(ok)
+	msg, err = c1.ReceiveProton(m)
+	requireT.NoError(err)
 	requireT.Equal(longString+"B", msg.(*test.Message).Field)
 
 	requireT.True(
-		c1.Send(&test.Message{
+		c1.SendProton(&test.Message{
 			Field: longString + "C",
-		}),
+		}, m),
 	)
 
-	msg, ok = <-recvCh2
-	requireT.True(ok)
+	msg, err = c2.ReceiveProton(m)
+	requireT.NoError(err)
 	requireT.Equal(longString+"C", msg.(*test.Message).Field)
 }
 
