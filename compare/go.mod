@@ -18,6 +18,7 @@ require (
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/outofforest/ioc/v2 v2.5.2 // indirect
+	github.com/outofforest/mass v0.2.1 // indirect
 	github.com/outofforest/run v0.8.0 // indirect
 	github.com/outofforest/spin v0.3.1 // indirect
 	github.com/outofforest/varuint64 v0.1.1 // indirect

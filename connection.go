@@ -7,6 +7,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/outofforest/mass"
 	"github.com/outofforest/parallel"
 	"github.com/outofforest/varuint64"
 )
@@ -17,11 +18,6 @@ const (
 )
 
 var pingBytes = []byte{0x00}
-
-type sendProton struct {
-	Msg        any
-	Marshaller ProtonMarshaller
-}
 
 // ProtonMarshaller is the proton's interface marshalling messages.
 type ProtonMarshaller interface {
@@ -40,13 +36,15 @@ type Config struct {
 
 // NewConnection creates new connection.
 func NewConnection(peer Peer, config Config) *Connection {
-	bufferSize := config.MaxMessageSize + 2*varuint64.MaxSize
+	bufferSize := config.MaxMessageSize + 3*varuint64.MaxSize
 	return &Connection{
-		peer:       peer,
-		buf:        NewPeerBuffer(),
-		sendCh:     make(chan any, 50),
-		bufferSize: bufferSize,
-		receiveBuf: make([]byte, bufferSize),
+		peer:           peer,
+		buf:            NewPeerBuffer(),
+		sendCh:         make(chan any, 50),
+		bufferSize:     bufferSize,
+		maxMessageSize: config.MaxMessageSize,
+		receiveBuf:     make([]byte, bufferSize),
+		massBytes:      mass.New[byte](10 * config.MaxMessageSize),
 	}
 }
 
@@ -58,8 +56,14 @@ type Connection struct {
 	sendLatch, receiveLatch atomic.Bool
 	sendCh                  chan any
 	bufferSize              uint64
+	maxMessageSize          uint64
 	receiveBuf              []byte
 	readStart, readEnd      uint64
+	massBytes               *mass.Mass[byte]
+}
+type sendProton struct {
+	Msg        any
+	Marshaller ProtonMarshaller
 }
 
 // SendProton sends proton message to the peer.
@@ -81,23 +85,16 @@ func (c *Connection) ReceiveProton(m ProtonUnmarshaller) (any, error) {
 		if c.readEnd == c.readStart {
 			c.readStart = 0
 			c.readEnd = 0
-		} else if c.readStart > c.bufferSize-varuint64.MaxSize {
-			copy(c.receiveBuf, c.receiveBuf[c.readStart:c.readEnd])
-			c.readEnd -= c.readStart
-			c.readStart = 0
 		}
 
 		buf := c.receiveBuf[c.readStart:]
 		sizeReceived := c.readEnd - c.readStart
-		for {
+		for !varuint64.Contains(buf[:sizeReceived]) {
 			n, err := c.buf.Read(buf[sizeReceived:varuint64.MaxSize])
 			if err != nil {
 				return nil, err
 			}
 			sizeReceived += uint64(n)
-			if varuint64.Contains(buf[:sizeReceived]) {
-				break
-			}
 		}
 
 		c.receiveLatch.Store(true)
@@ -109,17 +106,8 @@ func (c *Connection) ReceiveProton(m ProtonUnmarshaller) (any, error) {
 		case size == 0:
 			// ping received
 			continue
-		case size > c.bufferSize-varuint64.MaxSize:
-			return nil, errors.Errorf("message size %d exceeds allowed maximum %d",
-				size, c.bufferSize)
-		}
-		if c.readStart == c.readEnd {
-			c.readStart = 0
-			c.readEnd = 0
-		} else if c.readStart > c.bufferSize-size {
-			copy(c.receiveBuf, c.receiveBuf[c.readStart:c.readEnd])
-			c.readEnd -= c.readStart
-			c.readStart = 0
+		case size > c.maxMessageSize+varuint64.MaxSize:
+			return nil, errors.Errorf("message size exceeds allowed maximum %d", c.maxMessageSize)
 		}
 
 		buf = c.receiveBuf[c.readStart:]
@@ -150,9 +138,73 @@ func (c *Connection) ReceiveProton(m ProtonUnmarshaller) (any, error) {
 	}
 }
 
+// SendBytes sends bytes.
+func (c *Connection) SendBytes(msg []byte) bool {
+	defer func() {
+		_ = recover()
+	}()
+
+	c.sendCh <- msg
+	return true
+}
+
+// ReceiveBytes receives bytes.
+func (c *Connection) ReceiveBytes() ([]byte, error) {
+	for {
+		if c.readEnd == c.readStart {
+			c.readStart = 0
+			c.readEnd = 0
+		}
+
+		buf := c.receiveBuf[c.readStart:]
+		sizeReceived := c.readEnd - c.readStart
+		for !varuint64.Contains(buf[:sizeReceived]) {
+			n, err := c.buf.Read(buf[sizeReceived:varuint64.MaxSize])
+			if err != nil {
+				return nil, err
+			}
+			sizeReceived += uint64(n)
+		}
+
+		c.receiveLatch.Store(true)
+
+		size, n := varuint64.Parse(buf[:sizeReceived])
+		c.readEnd = c.readStart + sizeReceived
+		c.readStart += n
+		switch {
+		case size == 0:
+			// ping received
+			continue
+		case size > c.maxMessageSize:
+			return nil, errors.Errorf("message size %d exceeds allowed maximum %d",
+				size, c.bufferSize)
+		}
+
+		msgBuf := c.massBytes.NewSlice(size)
+		msgReceivedSize := c.readEnd - c.readStart
+		if msgReceivedSize > size {
+			msgReceivedSize = size
+		}
+		if msgReceivedSize > 0 {
+			msgReceivedSize = uint64(copy(msgBuf, c.receiveBuf[c.readStart:c.readStart+msgReceivedSize]))
+			c.readStart += msgReceivedSize
+		}
+
+		for msgReceivedSize < size {
+			n, err := c.buf.Read(msgBuf[msgReceivedSize:size])
+			if err != nil {
+				return nil, err
+			}
+			msgReceivedSize += uint64(n)
+		}
+
+		return msgBuf, nil
+	}
+}
+
 func (c *Connection) run(ctx context.Context) error {
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-		spawn("send", parallel.Fail, c.runSendPipeline)
+		spawn("send", parallel.Fail, c.runSend)
 		spawn("ping", parallel.Fail, func(ctx context.Context) error {
 			defer c.close()
 			defer close(c.sendCh)
@@ -169,7 +221,7 @@ func (c *Connection) run(ctx context.Context) error {
 					return errors.WithStack(ctx.Err())
 				case <-pingTicker.C:
 					if latch := c.sendLatch.Swap(false); !latch && len(c.sendCh) == 0 {
-						c.sendCh <- nil
+						c.sendPing()
 					}
 				case <-missedTicker.C:
 					if latch := c.receiveLatch.Swap(false); !latch {
@@ -186,30 +238,29 @@ func (c *Connection) run(ctx context.Context) error {
 	})
 }
 
+func (c *Connection) sendPing() {
+	c.sendCh <- struct{}{}
+}
+
 func (c *Connection) close() {
 	_ = c.peer.Close()
 	_ = c.buf.Close()
 }
 
-func (c *Connection) runSendPipeline(ctx context.Context) error {
+func (c *Connection) runSend(ctx context.Context) error {
 	sendBuf := make([]byte, c.bufferSize)
 
 	for msg := range c.sendCh {
 		c.sendLatch.Store(true)
-
-		if msg == nil {
-			// ping requested
-			if _, err := c.buf.Write(pingBytes); err != nil {
-				return err
-			}
-			continue
-		}
 
 		switch m := msg.(type) {
 		case sendProton:
 			msgID, msgSize, err := m.Marshaller.Marshal(m.Msg, sendBuf[2*varuint64.MaxSize:])
 			if err != nil {
 				return err
+			}
+			if msgSize > c.maxMessageSize {
+				return errors.Errorf("message size %d exceeds maximum %d", msgSize, c.maxMessageSize)
 			}
 
 			msgIDSize := varuint64.Size(msgID)
@@ -220,6 +271,21 @@ func (c *Connection) runSendPipeline(ctx context.Context) error {
 			totalSize += varuint64.Put(sendBuf[bufferStart:], totalSize)
 
 			if _, err := c.buf.Write(sendBuf[bufferStart : bufferStart+totalSize]); err != nil {
+				return err
+			}
+		case []byte:
+			if uint64(len(m)) > c.maxMessageSize {
+				return errors.Errorf("message size %d exceeds allowed maximum %d", len(m), c.bufferSize)
+			}
+			if _, err := c.buf.Write(sendBuf[:varuint64.Put(sendBuf, uint64(len(m)))]); err != nil {
+				return err
+			}
+			if _, err := c.buf.Write(m); err != nil {
+				return err
+			}
+		case struct{}:
+			// ping requested
+			if _, err := c.buf.Write(pingBytes); err != nil {
 				return err
 			}
 		default:
