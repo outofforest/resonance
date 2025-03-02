@@ -2,6 +2,7 @@ package resonance
 
 import (
 	"context"
+	"io"
 	"sync/atomic"
 	"time"
 
@@ -202,6 +203,16 @@ func (c *Connection) ReceiveBytes() ([]byte, error) {
 	}
 }
 
+// SendStream sends stream of data taken from the reader.
+func (c *Connection) SendStream(r io.Reader) bool {
+	defer func() {
+		_ = recover()
+	}()
+
+	c.sendCh <- r
+	return true
+}
+
 func (c *Connection) run(ctx context.Context) error {
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
 		spawn("send", parallel.Fail, c.runSend)
@@ -282,6 +293,10 @@ func (c *Connection) runSend(ctx context.Context) error {
 			}
 			if _, err := c.buf.Write(m); err != nil {
 				return err
+			}
+		case io.Reader:
+			if _, err := io.Copy(c.buf, m); err != nil {
+				return errors.WithStack(err)
 			}
 		case struct{}:
 			// ping requested

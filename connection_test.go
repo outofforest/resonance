@@ -1,6 +1,7 @@
 package resonance
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 
@@ -37,11 +38,9 @@ func TestConnectionProtonShort(t *testing.T) {
 	c1.sendPing()
 	c1.sendPing()
 
-	requireT.True(
-		c1.SendProton(&test.Message{
-			Field: "A",
-		}, m),
-	)
+	requireT.True(c1.SendProton(&test.Message{
+		Field: "A",
+	}, m))
 
 	msg, err := c2.ReceiveProton(m)
 	requireT.NoError(err)
@@ -49,11 +48,9 @@ func TestConnectionProtonShort(t *testing.T) {
 	requireT.Equal("A", msg.(*test.Message).Field)
 
 	c2.sendPing()
-	requireT.True(
-		c2.SendProton(&test.Message{
-			Field: "B",
-		}, m),
-	)
+	requireT.True(c2.SendProton(&test.Message{
+		Field: "B",
+	}, m))
 
 	msg, err = c1.ReceiveProton(m)
 	requireT.NoError(err)
@@ -103,11 +100,9 @@ func TestConnectionProtonLong(t *testing.T) {
 	c1.sendPing()
 	c1.sendPing()
 
-	requireT.True(
-		c1.SendProton(&test.Message{
-			Field: longString + "A",
-		}, m),
-	)
+	requireT.True(c1.SendProton(&test.Message{
+		Field: longString + "A",
+	}, m))
 
 	msg, err := c2.ReceiveProton(m)
 	requireT.NoError(err)
@@ -115,11 +110,9 @@ func TestConnectionProtonLong(t *testing.T) {
 	requireT.Equal(longString+"A", msg.(*test.Message).Field)
 
 	c2.sendPing()
-	requireT.True(
-		c2.SendProton(&test.Message{
-			Field: longString + "B",
-		}, m),
-	)
+	requireT.True(c2.SendProton(&test.Message{
+		Field: longString + "B",
+	}, m))
 
 	msg, err = c1.ReceiveProton(m)
 	requireT.NoError(err)
@@ -163,11 +156,9 @@ func TestConnectionProtonReceiveTooBigMessage(t *testing.T) {
 	group.Spawn("c1", parallel.Fail, c1.run)
 	group.Spawn("c2", parallel.Fail, c2.run)
 
-	requireT.True(
-		c1.SendProton(&test.Message{
-			Field: longString,
-		}, m),
-	)
+	requireT.True(c1.SendProton(&test.Message{
+		Field: longString,
+	}, m))
 
 	msg, err := c2.ReceiveProton(m)
 	requireT.Error(err)
@@ -267,9 +258,7 @@ func TestConnectionBytesShort(t *testing.T) {
 	c1.sendPing()
 	c1.sendPing()
 
-	requireT.True(
-		c1.SendBytes([]byte{0x01}),
-	)
+	requireT.True(c1.SendBytes([]byte{0x01}))
 
 	msg, err := c2.ReceiveBytes()
 	requireT.NoError(err)
@@ -445,6 +434,57 @@ func TestConnectionSendProtonReceiveBytes(t *testing.T) {
 	msgBytes, err := c2.ReceiveBytes()
 	requireT.NoError(err)
 	requireT.Equal(buf, msgBytes)
+}
+
+func TestConnectionStream(t *testing.T) {
+	ctx := sim.NewContext(t)
+	group := sim.NewParallel(ctx, t)
+	requireT := require.New(t)
+
+	config := Config{
+		MaxMessageSize: 100,
+	}
+
+	peer := NewPeerBuffer()
+
+	c1 := NewConnection(peer, config)
+	c2 := NewConnection(peer.OtherPeer(), config)
+
+	group.Spawn("c1", parallel.Fail, c1.run)
+	group.Spawn("c2", parallel.Fail, c2.run)
+
+	c1.sendPing()
+	c1.sendPing()
+	c1.sendPing()
+	c1.sendPing()
+	c1.sendPing()
+
+	requireT.True(c1.SendStream(bytes.NewBuffer([]byte{0x01, 0x01})))
+
+	msg, err := c2.ReceiveBytes()
+	requireT.NoError(err)
+	requireT.Equal([]byte{0x01}, msg)
+
+	c2.sendPing()
+	requireT.True(c2.SendStream(bytes.NewBuffer([]byte{0x01, 0x02})))
+
+	msg, err = c1.ReceiveBytes()
+	requireT.NoError(err)
+	requireT.Equal([]byte{0x02}, msg)
+
+	c1.sendPing()
+
+	for range 1000 {
+		requireT.True(c1.SendStream(bytes.NewBuffer([]byte{0x01, 0x03})))
+		requireT.True(c1.SendStream(bytes.NewBuffer([]byte{0x01, 0x04})))
+
+		msg, err = c2.ReceiveBytes()
+		requireT.NoError(err)
+		requireT.Equal([]byte{0x03}, msg)
+		msg, err = c2.ReceiveBytes()
+		requireT.NoError(err)
+		requireT.Equal([]byte{0x04}, msg)
+	}
 }
 
 var longString = strings.Repeat("_", 300)
