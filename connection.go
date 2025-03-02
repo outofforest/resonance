@@ -213,11 +213,17 @@ func (c *Connection) SendStream(r io.Reader) bool {
 	return true
 }
 
+// Close closes connection.
+func (c *Connection) Close() {
+	_ = c.peer.Close()
+	_ = c.buf.Close()
+}
+
 func (c *Connection) run(ctx context.Context) error {
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
 		spawn("send", parallel.Fail, c.runSend)
 		spawn("ping", parallel.Fail, func(ctx context.Context) error {
-			defer c.close()
+			defer c.Close()
 			defer close(c.sendCh)
 
 			pingTicker := time.NewTicker(pingInterval)
@@ -251,11 +257,6 @@ func (c *Connection) run(ctx context.Context) error {
 
 func (c *Connection) sendPing() {
 	c.sendCh <- struct{}{}
-}
-
-func (c *Connection) close() {
-	_ = c.peer.Close()
-	_ = c.buf.Close()
 }
 
 func (c *Connection) runSend(ctx context.Context) error {
