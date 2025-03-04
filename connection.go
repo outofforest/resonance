@@ -22,6 +22,7 @@ var pingBytes = []byte{0x00}
 
 // ProtonMarshaller is the proton's interface marshalling messages.
 type ProtonMarshaller interface {
+	Size(msg any) (uint64, error)
 	Marshal(msg any, buf []byte) (uint64, uint64, error)
 }
 
@@ -68,16 +69,23 @@ type sendProton struct {
 }
 
 // SendProton sends proton message to the peer.
-func (c *Connection) SendProton(msg any, m ProtonMarshaller) bool {
-	defer func() {
-		_ = recover()
-	}()
+func (c *Connection) SendProton(msg any, m ProtonMarshaller) (retErr error) {
+	msgSize, err := m.Size(msg)
+	if err != nil {
+		return err
+	}
+
+	if msgSize > c.maxMessageSize {
+		return errors.Errorf("message size %d exceeds maximum %d", msgSize, c.maxMessageSize)
+	}
+
+	defer sendRecover(&retErr)
 
 	c.sendCh <- sendProton{
 		Msg:        msg,
 		Marshaller: m,
 	}
-	return true
+	return nil
 }
 
 // ReceiveProton receives proton message from the peer.
@@ -140,13 +148,15 @@ func (c *Connection) ReceiveProton(m ProtonUnmarshaller) (any, error) {
 }
 
 // SendBytes sends bytes.
-func (c *Connection) SendBytes(msg []byte) bool {
-	defer func() {
-		_ = recover()
-	}()
+func (c *Connection) SendBytes(msg []byte) (retErr error) {
+	if msgSize := uint64(len(msg)); msgSize > c.maxMessageSize {
+		return errors.Errorf("message size %d exceeds maximum %d", msgSize, c.maxMessageSize)
+	}
+
+	defer sendRecover(&retErr)
 
 	c.sendCh <- msg
-	return true
+	return nil
 }
 
 // ReceiveBytes receives bytes.
@@ -204,13 +214,11 @@ func (c *Connection) ReceiveBytes() ([]byte, error) {
 }
 
 // SendStream sends stream of data taken from the reader.
-func (c *Connection) SendStream(r io.Reader) bool {
-	defer func() {
-		_ = recover()
-	}()
+func (c *Connection) SendStream(r io.Reader) (retErr error) {
+	defer sendRecover(&retErr)
 
 	c.sendCh <- r
-	return true
+	return nil
 }
 
 // Close closes connection.
@@ -221,7 +229,7 @@ func (c *Connection) Close() {
 
 func (c *Connection) run(ctx context.Context) error {
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-		spawn("send", parallel.Fail, c.runSend)
+		spawn("send", parallel.Continue, c.runSend)
 		spawn("ping", parallel.Fail, func(ctx context.Context) error {
 			defer c.Close()
 			defer close(c.sendCh)
@@ -310,4 +318,10 @@ func (c *Connection) runSend(ctx context.Context) error {
 	}
 
 	return errors.WithStack(ctx.Err())
+}
+
+func sendRecover(err *error) {
+	if recover() != nil {
+		*err = errors.New("connection is closed")
+	}
 }
