@@ -2,6 +2,7 @@ package resonance
 
 import (
 	"bytes"
+	"context"
 	"strings"
 	"testing"
 
@@ -38,7 +39,7 @@ func TestConnectionProtonShort(t *testing.T) {
 	c1.sendPing()
 	c1.sendPing()
 
-	requireT.True(c1.SendProton(&test.Message{
+	requireT.NoError(c1.SendProton(&test.Message{
 		Field: "A",
 	}, m))
 
@@ -48,7 +49,7 @@ func TestConnectionProtonShort(t *testing.T) {
 	requireT.Equal("A", msg.(*test.Message).Field)
 
 	c2.sendPing()
-	requireT.True(c2.SendProton(&test.Message{
+	requireT.NoError(c2.SendProton(&test.Message{
 		Field: "B",
 	}, m))
 
@@ -59,10 +60,10 @@ func TestConnectionProtonShort(t *testing.T) {
 	c1.sendPing()
 
 	for range 1000 {
-		requireT.True(c1.SendProton(&test.Message{
+		requireT.NoError(c1.SendProton(&test.Message{
 			Field: "C",
 		}, m))
-		requireT.True(c1.SendProton(&test.Message{
+		requireT.NoError(c1.SendProton(&test.Message{
 			Field: "D",
 		}, m))
 
@@ -100,7 +101,7 @@ func TestConnectionProtonLong(t *testing.T) {
 	c1.sendPing()
 	c1.sendPing()
 
-	requireT.True(c1.SendProton(&test.Message{
+	requireT.NoError(c1.SendProton(&test.Message{
 		Field: longString + "A",
 	}, m))
 
@@ -110,7 +111,7 @@ func TestConnectionProtonLong(t *testing.T) {
 	requireT.Equal(longString+"A", msg.(*test.Message).Field)
 
 	c2.sendPing()
-	requireT.True(c2.SendProton(&test.Message{
+	requireT.NoError(c2.SendProton(&test.Message{
 		Field: longString + "B",
 	}, m))
 
@@ -121,10 +122,10 @@ func TestConnectionProtonLong(t *testing.T) {
 	c1.sendPing()
 
 	for range 1000 {
-		requireT.True(c1.SendProton(&test.Message{
+		requireT.NoError(c1.SendProton(&test.Message{
 			Field: longString + "C",
 		}, m))
-		requireT.True(c1.SendProton(&test.Message{
+		requireT.NoError(c1.SendProton(&test.Message{
 			Field: longString + "D",
 		}, m))
 
@@ -135,6 +136,22 @@ func TestConnectionProtonLong(t *testing.T) {
 		requireT.NoError(err)
 		requireT.Equal(longString+"D", msg.(*test.Message).Field)
 	}
+}
+
+func TestConnectionProtonSendTooBigMessage(t *testing.T) {
+	requireT := require.New(t)
+
+	m := test.NewMarshaller()
+
+	peer := NewPeerBuffer()
+
+	c := NewConnection(peer, Config{
+		MaxMessageSize: 2,
+	})
+
+	requireT.Error(c.SendProton(&test.Message{
+		Field: longString,
+	}, m))
 }
 
 func TestConnectionProtonReceiveTooBigMessage(t *testing.T) {
@@ -156,7 +173,7 @@ func TestConnectionProtonReceiveTooBigMessage(t *testing.T) {
 	group.Spawn("c1", parallel.Fail, c1.run)
 	group.Spawn("c2", parallel.Fail, c2.run)
 
-	requireT.True(c1.SendProton(&test.Message{
+	requireT.NoError(c1.SendProton(&test.Message{
 		Field: longString,
 	}, m))
 
@@ -193,7 +210,7 @@ func TestConnectionProtonReceiveInvalidMessage1(t *testing.T) {
 	size += varuint64.Put(buf, id)
 	buf[1]++ // Set invalid length of string inside message.
 
-	requireT.True(c1.SendBytes(buf[:size]))
+	requireT.NoError(c1.SendBytes(buf[:size]))
 
 	msg, err := c2.ReceiveProton(m)
 	requireT.Error(err)
@@ -228,7 +245,7 @@ func TestConnectionProtonReceiveInvalidMessage2(t *testing.T) {
 	size += varuint64.Put(buf, id)
 	buf[2] = 0x80 - 1 // Set invalid length of string inside message.
 
-	requireT.True(c1.SendBytes(buf[:size]))
+	requireT.NoError(c1.SendBytes(buf[:size]))
 
 	msg, err := c2.ReceiveProton(m)
 	requireT.Error(err)
@@ -258,7 +275,7 @@ func TestConnectionBytesShort(t *testing.T) {
 	c1.sendPing()
 	c1.sendPing()
 
-	requireT.True(c1.SendBytes([]byte{0x01}))
+	requireT.NoError(c1.SendBytes([]byte{0x01}))
 
 	msg, err := c2.ReceiveBytes()
 	requireT.NoError(err)
@@ -266,7 +283,7 @@ func TestConnectionBytesShort(t *testing.T) {
 	requireT.Equal([]byte{0x01}, msg)
 
 	c2.sendPing()
-	requireT.True(c2.SendBytes([]byte{0x02}))
+	requireT.NoError(c2.SendBytes([]byte{0x02}))
 
 	msg, err = c1.ReceiveBytes()
 	requireT.NoError(err)
@@ -275,8 +292,8 @@ func TestConnectionBytesShort(t *testing.T) {
 	c1.sendPing()
 
 	for range 1000 {
-		requireT.True(c1.SendBytes([]byte{0x03}))
-		requireT.True(c1.SendBytes([]byte{0x04}))
+		requireT.NoError(c1.SendBytes([]byte{0x03}))
+		requireT.NoError(c1.SendBytes([]byte{0x04}))
 
 		msg, err = c2.ReceiveBytes()
 		requireT.NoError(err)
@@ -310,7 +327,7 @@ func TestConnectionBytesLong(t *testing.T) {
 	c1.sendPing()
 	c1.sendPing()
 
-	requireT.True(c1.SendBytes([]byte(longString + "A")))
+	requireT.NoError(c1.SendBytes([]byte(longString + "A")))
 
 	msg, err := c2.ReceiveBytes()
 	requireT.NoError(err)
@@ -318,7 +335,7 @@ func TestConnectionBytesLong(t *testing.T) {
 	requireT.Equal([]byte(longString+"A"), msg)
 
 	c2.sendPing()
-	requireT.True(c2.SendBytes([]byte(longString + "B")))
+	requireT.NoError(c2.SendBytes([]byte(longString + "B")))
 
 	msg, err = c1.ReceiveBytes()
 	requireT.NoError(err)
@@ -327,8 +344,8 @@ func TestConnectionBytesLong(t *testing.T) {
 	c1.sendPing()
 
 	for range 1000 {
-		requireT.True(c1.SendBytes([]byte(longString + "C")))
-		requireT.True(c1.SendBytes([]byte(longString + "D")))
+		requireT.NoError(c1.SendBytes([]byte(longString + "C")))
+		requireT.NoError(c1.SendBytes([]byte(longString + "D")))
 
 		msg, err = c2.ReceiveBytes()
 		requireT.NoError(err)
@@ -337,6 +354,18 @@ func TestConnectionBytesLong(t *testing.T) {
 		requireT.NoError(err)
 		requireT.Equal([]byte(longString+"D"), msg)
 	}
+}
+
+func TestConnectionBytesSendTooBigMessage(t *testing.T) {
+	requireT := require.New(t)
+
+	peer := NewPeerBuffer()
+
+	c := NewConnection(peer, Config{
+		MaxMessageSize: 2,
+	})
+
+	requireT.Error(c.SendBytes([]byte{0x00, 0x01, 0x02}))
 }
 
 func TestConnectionBytesReceiveTooBigMessage(t *testing.T) {
@@ -356,7 +385,7 @@ func TestConnectionBytesReceiveTooBigMessage(t *testing.T) {
 	group.Spawn("c1", parallel.Fail, c1.run)
 	group.Spawn("c2", parallel.Fail, c2.run)
 
-	requireT.True(c1.SendBytes([]byte{0x01, 0x02, 0x03}))
+	requireT.NoError(c1.SendBytes([]byte{0x01, 0x02, 0x03}))
 
 	msg, err := c2.ReceiveBytes()
 	requireT.Error(err)
@@ -390,7 +419,7 @@ func TestConnectionSendBytesReceiveProton(t *testing.T) {
 	buf = buf[varuint64.MaxSize-varuint64.Size(id):]
 	size += varuint64.Put(buf, id)
 
-	requireT.True(c1.SendBytes(buf[:size]))
+	requireT.NoError(c1.SendBytes(buf[:size]))
 
 	msg, err := c2.ReceiveProton(m)
 	requireT.NoError(err)
@@ -429,7 +458,7 @@ func TestConnectionSendProtonReceiveBytes(t *testing.T) {
 	size += varuint64.Put(buf, id)
 	buf = buf[:size]
 
-	requireT.True(c1.SendProton(msg, m))
+	requireT.NoError(c1.SendProton(msg, m))
 
 	msgBytes, err := c2.ReceiveBytes()
 	requireT.NoError(err)
@@ -459,14 +488,14 @@ func TestConnectionStream(t *testing.T) {
 	c1.sendPing()
 	c1.sendPing()
 
-	requireT.True(c1.SendStream(bytes.NewBuffer([]byte{0x01, 0x01})))
+	requireT.NoError(c1.SendStream(bytes.NewBuffer([]byte{0x01, 0x01})))
 
 	msg, err := c2.ReceiveBytes()
 	requireT.NoError(err)
 	requireT.Equal([]byte{0x01}, msg)
 
 	c2.sendPing()
-	requireT.True(c2.SendStream(bytes.NewBuffer([]byte{0x01, 0x02})))
+	requireT.NoError(c2.SendStream(bytes.NewBuffer([]byte{0x01, 0x02})))
 
 	msg, err = c1.ReceiveBytes()
 	requireT.NoError(err)
@@ -475,8 +504,8 @@ func TestConnectionStream(t *testing.T) {
 	c1.sendPing()
 
 	for range 1000 {
-		requireT.True(c1.SendStream(bytes.NewBuffer([]byte{0x01, 0x03})))
-		requireT.True(c1.SendStream(bytes.NewBuffer([]byte{0x01, 0x04})))
+		requireT.NoError(c1.SendStream(bytes.NewBuffer([]byte{0x01, 0x03})))
+		requireT.NoError(c1.SendStream(bytes.NewBuffer([]byte{0x01, 0x04})))
 
 		msg, err = c2.ReceiveBytes()
 		requireT.NoError(err)
@@ -485,6 +514,25 @@ func TestConnectionStream(t *testing.T) {
 		requireT.NoError(err)
 		requireT.Equal([]byte{0x04}, msg)
 	}
+}
+
+func TestConnectionDead(t *testing.T) {
+	ctx, cancel := context.WithCancel(sim.NewContext(t))
+	cancel()
+	requireT := require.New(t)
+
+	config := Config{
+		MaxMessageSize: 100,
+	}
+
+	peer := NewPeerBuffer()
+
+	c := NewConnection(peer, config)
+	_ = c.run(ctx)
+
+	requireT.Error(c.SendProton(test.Message{}, test.NewMarshaller()))
+	requireT.Error(c.SendBytes([]byte{0x01, 0x02}))
+	requireT.Error(c.SendStream(bytes.NewBuffer([]byte{0x01, 0x02})))
 }
 
 var longString = strings.Repeat("_", 300)
