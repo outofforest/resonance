@@ -465,6 +465,146 @@ func TestConnectionSendProtonReceiveBytes(t *testing.T) {
 	requireT.Equal(buf, msgBytes)
 }
 
+func TestConnectionRawBytesShort(t *testing.T) {
+	ctx := sim.NewContext(t)
+	group := sim.NewParallel(ctx, t)
+	requireT := require.New(t)
+
+	config := Config{
+		MaxMessageSize: 100,
+	}
+
+	peer := NewPeerBuffer()
+
+	c1 := NewConnection(peer, config)
+	c2 := NewConnection(peer.OtherPeer(), config)
+
+	group.Spawn("c1", parallel.Fail, c1.run)
+	group.Spawn("c2", parallel.Fail, c2.run)
+
+	c1.sendPing()
+	c1.sendPing()
+	c1.sendPing()
+	c1.sendPing()
+	c1.sendPing()
+
+	requireT.NoError(c1.SendRawBytes([]byte{0x01, 0x01}))
+
+	msg, err := c2.ReceiveRawBytes()
+	requireT.NoError(err)
+
+	requireT.Equal([]byte{0x01, 0x01}, msg)
+
+	c2.sendPing()
+	requireT.NoError(c2.SendRawBytes([]byte{0x01, 0x02}))
+
+	msg, err = c1.ReceiveRawBytes()
+	requireT.NoError(err)
+	requireT.Equal([]byte{0x01, 0x02}, msg)
+
+	c1.sendPing()
+
+	for range 1000 {
+		requireT.NoError(c1.SendRawBytes([]byte{0x01, 0x03}))
+		requireT.NoError(c1.SendRawBytes([]byte{0x01, 0x04}))
+
+		msg, err = c2.ReceiveRawBytes()
+		requireT.NoError(err)
+		requireT.Equal([]byte{0x01, 0x03}, msg)
+		msg, err = c2.ReceiveRawBytes()
+		requireT.NoError(err)
+		requireT.Equal([]byte{0x01, 0x04}, msg)
+	}
+}
+
+func TestConnectionRawBytesLong(t *testing.T) {
+	ctx := sim.NewContext(t)
+	group := sim.NewParallel(ctx, t)
+	requireT := require.New(t)
+
+	config := Config{
+		MaxMessageSize: uint64(len(longString) + 3),
+	}
+
+	peer := NewPeerBuffer()
+
+	c1 := NewConnection(peer, config)
+	c2 := NewConnection(peer.OtherPeer(), config)
+
+	group.Spawn("c1", parallel.Fail, c1.run)
+	group.Spawn("c2", parallel.Fail, c2.run)
+
+	c1.sendPing()
+	c1.sendPing()
+	c1.sendPing()
+	c1.sendPing()
+	c1.sendPing()
+
+	requireT.NoError(c1.SendRawBytes(append([]byte{0xad, 0x02}, longString+"A"...)))
+
+	msg, err := c2.ReceiveRawBytes()
+	requireT.NoError(err)
+
+	requireT.Equal(append([]byte{0xad, 0x02}, longString+"A"...), msg)
+
+	c2.sendPing()
+	requireT.NoError(c2.SendRawBytes(append([]byte{0xad, 0x02}, longString+"B"...)))
+
+	msg, err = c1.ReceiveRawBytes()
+	requireT.NoError(err)
+	requireT.Equal(append([]byte{0xad, 0x02}, longString+"B"...), msg)
+
+	c1.sendPing()
+
+	for range 1000 {
+		requireT.NoError(c1.SendRawBytes(append([]byte{0xad, 0x02}, longString+"C"...)))
+		requireT.NoError(c1.SendRawBytes(append([]byte{0xad, 0x02}, longString+"D"...)))
+
+		msg, err = c2.ReceiveRawBytes()
+		requireT.NoError(err)
+		requireT.Equal(append([]byte{0xad, 0x02}, longString+"C"...), msg)
+		msg, err = c2.ReceiveRawBytes()
+		requireT.NoError(err)
+		requireT.Equal(append([]byte{0xad, 0x02}, longString+"D"...), msg)
+	}
+}
+
+func TestConnectionRawBytesSendTooBigMessage(t *testing.T) {
+	requireT := require.New(t)
+
+	peer := NewPeerBuffer()
+
+	c := NewConnection(peer, Config{
+		MaxMessageSize: 3,
+	})
+
+	requireT.Error(c.SendRawBytes([]byte{0x03, 0x00, 0x01, 0x02}))
+}
+
+func TestConnectionRawBytesReceiveTooBigMessage(t *testing.T) {
+	ctx := sim.NewContext(t)
+	group := sim.NewParallel(ctx, t)
+	requireT := require.New(t)
+
+	peer := NewPeerBuffer()
+
+	c1 := NewConnection(peer, Config{
+		MaxMessageSize: 4,
+	})
+	c2 := NewConnection(peer.OtherPeer(), Config{
+		MaxMessageSize: 3,
+	})
+
+	group.Spawn("c1", parallel.Fail, c1.run)
+	group.Spawn("c2", parallel.Fail, c2.run)
+
+	requireT.NoError(c1.SendRawBytes([]byte{0x03, 0x01, 0x02, 0x03}))
+
+	msg, err := c2.ReceiveRawBytes()
+	requireT.Error(err)
+	requireT.Nil(msg)
+}
+
 func TestConnectionStream(t *testing.T) {
 	ctx := sim.NewContext(t)
 	group := sim.NewParallel(ctx, t)
