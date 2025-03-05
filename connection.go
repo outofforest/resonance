@@ -197,7 +197,76 @@ func (c *Connection) ReceiveBytes() ([]byte, error) {
 			msgReceivedSize = size
 		}
 		if msgReceivedSize > 0 {
-			msgReceivedSize = uint64(copy(msgBuf, c.receiveBuf[c.readStart:c.readStart+msgReceivedSize]))
+			copy(msgBuf, c.receiveBuf[c.readStart:c.readStart+msgReceivedSize])
+			c.readStart += msgReceivedSize
+		}
+
+		for msgReceivedSize < size {
+			n, err := c.buf.Read(msgBuf[msgReceivedSize:size])
+			if err != nil {
+				return nil, err
+			}
+			msgReceivedSize += uint64(n)
+		}
+
+		return msgBuf, nil
+	}
+}
+
+type rawBytes []byte
+
+// SendRawBytes sends bytes with length prefix already included.
+func (c *Connection) SendRawBytes(msg []byte) (retErr error) {
+	if msgSize := uint64(len(msg)); msgSize > c.maxMessageSize {
+		return errors.Errorf("message size %d exceeds maximum %d", msgSize, c.maxMessageSize)
+	}
+
+	defer sendRecover(&retErr)
+
+	c.sendCh <- rawBytes(msg)
+	return nil
+}
+
+// ReceiveRawBytes receives bytes and returns them with together with length prefix.
+func (c *Connection) ReceiveRawBytes() ([]byte, error) {
+	for {
+		if c.readEnd == c.readStart {
+			c.readStart = 0
+			c.readEnd = 0
+		}
+
+		buf := c.receiveBuf[c.readStart:]
+		sizeReceived := c.readEnd - c.readStart
+		for !varuint64.Contains(buf[:sizeReceived]) {
+			n, err := c.buf.Read(buf[sizeReceived:varuint64.MaxSize])
+			if err != nil {
+				return nil, err
+			}
+			sizeReceived += uint64(n)
+		}
+
+		c.receiveLatch.Store(true)
+
+		size, n := varuint64.Parse(buf[:sizeReceived])
+		c.readEnd = c.readStart + sizeReceived
+		switch {
+		case size == 0:
+			// ping received
+			c.readStart += n
+			continue
+		case size+n > c.maxMessageSize:
+			return nil, errors.Errorf("message size %d exceeds allowed maximum %d",
+				size, c.bufferSize)
+		}
+
+		size += n
+		msgBuf := c.massBytes.NewSlice(size)
+		msgReceivedSize := c.readEnd - c.readStart
+		if msgReceivedSize > size {
+			msgReceivedSize = size
+		}
+		if msgReceivedSize > 0 {
+			copy(msgBuf, c.receiveBuf[c.readStart:c.readStart+msgReceivedSize])
 			c.readStart += msgReceivedSize
 		}
 
@@ -291,6 +360,13 @@ func (c *Connection) runSend(ctx context.Context) error {
 			totalSize += varuint64.Put(sendBuf[bufferStart:], totalSize)
 
 			if _, err := c.buf.Write(sendBuf[bufferStart : bufferStart+totalSize]); err != nil {
+				return err
+			}
+		case rawBytes:
+			if uint64(len(m)) > c.maxMessageSize {
+				return errors.Errorf("message size %d exceeds allowed maximum %d", len(m), c.bufferSize)
+			}
+			if _, err := c.buf.Write(m); err != nil {
 				return err
 			}
 		case []byte:
