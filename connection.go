@@ -33,21 +33,32 @@ type ProtonUnmarshaller interface {
 
 // Config is the configuration of connection.
 type Config struct {
-	MaxMessageSize uint64
+	MaxMessageSize                uint64
+	BufferedReads, BufferedWrites bool
 }
 
 // NewConnection creates new connection.
 func NewConnection(peer Peer, config Config) *Connection {
 	bufferSize := config.MaxMessageSize + 3*varuint64.MaxSize
-	return &Connection{
+	buf := NewPeerBuffer()
+	c := &Connection{
 		peer:           peer,
-		buf:            NewPeerBuffer(),
+		buf:            buf,
+		reader:         peer,
+		writer:         peer,
 		sendCh:         make(chan any, 50),
 		bufferSize:     bufferSize,
 		maxMessageSize: config.MaxMessageSize,
 		receiveBuf:     make([]byte, bufferSize),
 		massBytes:      mass.New[byte](10 * config.MaxMessageSize),
 	}
+	if config.BufferedReads {
+		c.reader = buf
+	}
+	if config.BufferedWrites {
+		c.writer = buf
+	}
+	return c
 }
 
 // Connection allows to communicate with the peer.
@@ -55,6 +66,8 @@ type Connection struct {
 	peer Peer
 
 	buf                     PeerBuffer
+	reader                  io.Reader
+	writer                  io.Writer
 	sendLatch, receiveLatch atomic.Bool
 	sendCh                  chan any
 	bufferSize              uint64
@@ -99,7 +112,7 @@ func (c *Connection) ReceiveProton(m ProtonUnmarshaller) (any, error) {
 		buf := c.receiveBuf[c.readStart:]
 		sizeReceived := c.readEnd - c.readStart
 		for !varuint64.Contains(buf[:sizeReceived]) {
-			n, err := c.buf.Read(buf[sizeReceived:varuint64.MaxSize])
+			n, err := c.reader.Read(buf[sizeReceived:varuint64.MaxSize])
 			if err != nil {
 				return nil, err
 			}
@@ -123,7 +136,7 @@ func (c *Connection) ReceiveProton(m ProtonUnmarshaller) (any, error) {
 
 		msgReceivedSize := c.readEnd - c.readStart
 		for msgReceivedSize < size {
-			n, err := c.buf.Read(buf[msgReceivedSize:size])
+			n, err := c.reader.Read(buf[msgReceivedSize:size])
 			if err != nil {
 				return nil, err
 			}
@@ -170,7 +183,7 @@ func (c *Connection) ReceiveBytes() ([]byte, error) {
 		buf := c.receiveBuf[c.readStart:]
 		sizeReceived := c.readEnd - c.readStart
 		for !varuint64.Contains(buf[:sizeReceived]) {
-			n, err := c.buf.Read(buf[sizeReceived:varuint64.MaxSize])
+			n, err := c.reader.Read(buf[sizeReceived:varuint64.MaxSize])
 			if err != nil {
 				return nil, err
 			}
@@ -202,7 +215,7 @@ func (c *Connection) ReceiveBytes() ([]byte, error) {
 		}
 
 		for msgReceivedSize < size {
-			n, err := c.buf.Read(msgBuf[msgReceivedSize:size])
+			n, err := c.reader.Read(msgBuf[msgReceivedSize:size])
 			if err != nil {
 				return nil, err
 			}
@@ -238,7 +251,7 @@ func (c *Connection) ReceiveRawBytes() ([]byte, error) {
 		buf := c.receiveBuf[c.readStart:]
 		sizeReceived := c.readEnd - c.readStart
 		for !varuint64.Contains(buf[:sizeReceived]) {
-			n, err := c.buf.Read(buf[sizeReceived:varuint64.MaxSize])
+			n, err := c.reader.Read(buf[sizeReceived:varuint64.MaxSize])
 			if err != nil {
 				return nil, err
 			}
@@ -271,7 +284,7 @@ func (c *Connection) ReceiveRawBytes() ([]byte, error) {
 		}
 
 		for msgReceivedSize < size {
-			n, err := c.buf.Read(msgBuf[msgReceivedSize:size])
+			n, err := c.reader.Read(msgBuf[msgReceivedSize:size])
 			if err != nil {
 				return nil, err
 			}
@@ -324,9 +337,16 @@ func (c *Connection) run(ctx context.Context) error {
 				}
 			}
 		})
-		spawn("copy", parallel.Exit, func(ctx context.Context) error {
-			return c.buf.Run(ctx, c.peer)
-		})
+		if c.reader == c.buf {
+			spawn("readBuffer", parallel.Exit, func(ctx context.Context) error {
+				return c.buf.RunReader(ctx, c.peer)
+			})
+		}
+		if c.writer == c.buf {
+			spawn("writeBuffer", parallel.Exit, func(ctx context.Context) error {
+				return c.buf.RunWriter(ctx, c.peer)
+			})
+		}
 
 		return nil
 	})
@@ -359,33 +379,33 @@ func (c *Connection) runSend(ctx context.Context) error {
 			bufferStart := 2*varuint64.MaxSize - msgIDSize - varuint64.Size(totalSize)
 			totalSize += varuint64.Put(sendBuf[bufferStart:], totalSize)
 
-			if _, err := c.buf.Write(sendBuf[bufferStart : bufferStart+totalSize]); err != nil {
+			if _, err := c.writer.Write(sendBuf[bufferStart : bufferStart+totalSize]); err != nil {
 				return err
 			}
 		case rawBytes:
 			if uint64(len(m)) > c.maxMessageSize {
 				return errors.Errorf("message size %d exceeds allowed maximum %d", len(m), c.bufferSize)
 			}
-			if _, err := c.buf.Write(m); err != nil {
+			if _, err := c.writer.Write(m); err != nil {
 				return err
 			}
 		case []byte:
 			if uint64(len(m)) > c.maxMessageSize {
 				return errors.Errorf("message size %d exceeds allowed maximum %d", len(m), c.bufferSize)
 			}
-			if _, err := c.buf.Write(sendBuf[:varuint64.Put(sendBuf, uint64(len(m)))]); err != nil {
+			if _, err := c.writer.Write(sendBuf[:varuint64.Put(sendBuf, uint64(len(m)))]); err != nil {
 				return err
 			}
-			if _, err := c.buf.Write(m); err != nil {
+			if _, err := c.writer.Write(m); err != nil {
 				return err
 			}
 		case io.Reader:
-			if _, err := io.Copy(c.buf, m); err != nil {
+			if _, err := io.Copy(c.writer, m); err != nil {
 				return errors.WithStack(err)
 			}
 		case struct{}:
 			// ping requested
-			if _, err := c.buf.Write(pingBytes); err != nil {
+			if _, err := c.writer.Write(pingBytes); err != nil {
 				return err
 			}
 		default:

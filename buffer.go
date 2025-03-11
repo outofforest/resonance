@@ -6,7 +6,6 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/outofforest/parallel"
 	"github.com/outofforest/spin"
 )
 
@@ -65,23 +64,20 @@ func (b PeerBuffer) Close() error {
 	return err2
 }
 
-// Run runs the goroutines responsible for copying data between this buffer and the external one.
-func (b PeerBuffer) Run(ctx context.Context, peer Peer) error {
-	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-		spawn("peer", parallel.Exit, func(ctx context.Context) error {
-			_, err := b.OtherPeer().ReadFrom(peer)
-			if errors.Is(err, io.EOF) {
-				return nil
-			}
-			return err
-		})
-		spawn("me", parallel.Exit, func(ctx context.Context) error {
-			_, err := b.OtherPeer().WriteTo(peer)
-			if errors.Is(err, io.EOF) {
-				return nil
-			}
-			return err
-		})
+// RunReader reads data from peer.
+func (b PeerBuffer) RunReader(ctx context.Context, peer Peer) error {
+	_, err := b.OtherPeer().ReadFrom(peer)
+	if errors.Is(err, io.EOF) {
 		return nil
-	})
+	}
+	return err
+}
+
+// RunWriter writes data to peer.
+func (b PeerBuffer) RunWriter(ctx context.Context, peer Peer) error {
+	_, err := b.OtherPeer().WriteTo(peer)
+	if errors.Is(err, io.EOF) {
+		return nil
+	}
+	return err
 }
