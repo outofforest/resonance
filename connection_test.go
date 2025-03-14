@@ -41,6 +41,8 @@ func TestConnectionProtonShort(t *testing.T) {
 	c1.sendPing()
 	c1.sendPing()
 
+	requireT.Zero(c1.BytesSent())
+
 	requireT.NoError(c1.SendProton(&test.Message{
 		Field: "A",
 	}, m))
@@ -49,6 +51,7 @@ func TestConnectionProtonShort(t *testing.T) {
 	requireT.NoError(err)
 
 	requireT.Equal("A", msg.(*test.Message).Field)
+	requireT.EqualValues(4, c1.BytesSent())
 
 	c2.sendPing()
 	requireT.NoError(c2.SendProton(&test.Message{
@@ -58,6 +61,7 @@ func TestConnectionProtonShort(t *testing.T) {
 	msg, err = c1.ReceiveProton(m)
 	requireT.NoError(err)
 	requireT.Equal("B", msg.(*test.Message).Field)
+	requireT.EqualValues(4, c2.BytesSent())
 
 	c1.sendPing()
 
@@ -76,6 +80,9 @@ func TestConnectionProtonShort(t *testing.T) {
 		requireT.NoError(err)
 		requireT.Equal("D", msg.(*test.Message).Field)
 	}
+
+	requireT.EqualValues(8004, c1.BytesSent())
+	requireT.EqualValues(4, c2.BytesSent())
 }
 
 func TestConnectionProtonLong(t *testing.T) {
@@ -297,6 +304,7 @@ func TestConnectionBytesShort(t *testing.T) {
 	requireT.NoError(err)
 
 	requireT.Equal([]byte{0x01}, msg)
+	requireT.EqualValues(2, c1.BytesSent())
 
 	c2.sendPing()
 	requireT.NoError(c2.SendBytes([]byte{0x02}))
@@ -304,6 +312,7 @@ func TestConnectionBytesShort(t *testing.T) {
 	msg, err = c1.ReceiveBytes()
 	requireT.NoError(err)
 	requireT.Equal([]byte{0x02}, msg)
+	requireT.EqualValues(2, c2.BytesSent())
 
 	c1.sendPing()
 
@@ -318,6 +327,9 @@ func TestConnectionBytesShort(t *testing.T) {
 		requireT.NoError(err)
 		requireT.Equal([]byte{0x04}, msg)
 	}
+
+	requireT.EqualValues(4002, c1.BytesSent())
+	requireT.EqualValues(2, c2.BytesSent())
 }
 
 func TestConnectionBytesLong(t *testing.T) {
@@ -524,6 +536,7 @@ func TestConnectionRawBytesShort(t *testing.T) {
 	requireT.NoError(err)
 
 	requireT.Equal([]byte{0x01, 0x01}, msg)
+	requireT.EqualValues(2, c1.BytesSent())
 
 	c2.sendPing()
 	requireT.NoError(c2.SendRawBytes([]byte{0x01, 0x02}))
@@ -531,6 +544,7 @@ func TestConnectionRawBytesShort(t *testing.T) {
 	msg, err = c1.ReceiveRawBytes()
 	requireT.NoError(err)
 	requireT.Equal([]byte{0x01, 0x02}, msg)
+	requireT.EqualValues(2, c2.BytesSent())
 
 	c1.sendPing()
 
@@ -545,6 +559,9 @@ func TestConnectionRawBytesShort(t *testing.T) {
 		requireT.NoError(err)
 		requireT.Equal([]byte{0x01, 0x04}, msg)
 	}
+
+	requireT.EqualValues(4002, c1.BytesSent())
+	requireT.EqualValues(2, c2.BytesSent())
 }
 
 func TestConnectionRawBytesLong(t *testing.T) {
@@ -673,6 +690,7 @@ func TestConnectionStream(t *testing.T) {
 	msg, err := c2.ReceiveBytes()
 	requireT.NoError(err)
 	requireT.Equal([]byte{0x01}, msg)
+	requireT.EqualValues(2, c1.BytesSent())
 
 	c2.sendPing()
 	requireT.NoError(c2.SendStream(bytes.NewBuffer([]byte{0x01, 0x02})))
@@ -680,6 +698,7 @@ func TestConnectionStream(t *testing.T) {
 	msg, err = c1.ReceiveBytes()
 	requireT.NoError(err)
 	requireT.Equal([]byte{0x02}, msg)
+	requireT.EqualValues(2, c2.BytesSent())
 
 	c1.sendPing()
 
@@ -694,6 +713,8 @@ func TestConnectionStream(t *testing.T) {
 		requireT.NoError(err)
 		requireT.Equal([]byte{0x04}, msg)
 	}
+	requireT.EqualValues(4002, c1.BytesSent())
+	requireT.EqualValues(2, c2.BytesSent())
 }
 
 func TestConnectionUnbuffered(t *testing.T) {

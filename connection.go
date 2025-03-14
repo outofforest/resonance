@@ -75,10 +75,16 @@ type Connection struct {
 	receiveBuf              []byte
 	readStart, readEnd      uint64
 	massBytes               *mass.Mass[byte]
+	bytesSent               uint64
 }
 type sendProton struct {
 	Msg        any
 	Marshaller ProtonMarshaller
+}
+
+// BytesSent returns the number of bytes sent over the connection, excluding pings.
+func (c *Connection) BytesSent() uint64 {
+	return atomic.LoadUint64(&c.bytesSent)
 }
 
 // SendProton sends proton message to the peer.
@@ -382,6 +388,8 @@ func (c *Connection) runSend(ctx context.Context) error {
 			if _, err := c.writer.Write(sendBuf[bufferStart : bufferStart+totalSize]); err != nil {
 				return err
 			}
+
+			atomic.AddUint64(&c.bytesSent, totalSize)
 		case rawBytes:
 			if uint64(len(m)) > c.maxMessageSize {
 				return errors.Errorf("message size %d exceeds allowed maximum %d", len(m), c.bufferSize)
@@ -389,20 +397,29 @@ func (c *Connection) runSend(ctx context.Context) error {
 			if _, err := c.writer.Write(m); err != nil {
 				return err
 			}
+
+			atomic.AddUint64(&c.bytesSent, uint64(len(m)))
 		case []byte:
 			if uint64(len(m)) > c.maxMessageSize {
 				return errors.Errorf("message size %d exceeds allowed maximum %d", len(m), c.bufferSize)
 			}
-			if _, err := c.writer.Write(sendBuf[:varuint64.Put(sendBuf, uint64(len(m)))]); err != nil {
+
+			n := varuint64.Put(sendBuf, uint64(len(m)))
+			if _, err := c.writer.Write(sendBuf[:n]); err != nil {
 				return err
 			}
 			if _, err := c.writer.Write(m); err != nil {
 				return err
 			}
+
+			atomic.AddUint64(&c.bytesSent, n+uint64(len(m)))
 		case io.Reader:
-			if _, err := io.Copy(c.writer, m); err != nil {
+			n, err := io.Copy(c.writer, m)
+			if err != nil {
 				return errors.WithStack(err)
 			}
+
+			atomic.AddUint64(&c.bytesSent, uint64(n))
 		case struct{}:
 			// ping requested
 			if _, err := c.writer.Write(pingBytes); err != nil {
