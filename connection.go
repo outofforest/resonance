@@ -33,15 +33,14 @@ type ProtonUnmarshaller interface {
 
 // Config is the configuration of connection.
 type Config struct {
-	MaxMessageSize                uint64
-	BufferedReads, BufferedWrites bool
+	MaxMessageSize uint64
 }
 
 // NewConnection creates new connection.
 func NewConnection(peer Peer, config Config) *Connection {
 	bufferSize := config.MaxMessageSize + 3*varuint64.MaxSize
 	buf := NewPeerBuffer()
-	c := &Connection{
+	return &Connection{
 		peer:           peer,
 		buf:            buf,
 		reader:         peer,
@@ -51,14 +50,9 @@ func NewConnection(peer Peer, config Config) *Connection {
 		maxMessageSize: config.MaxMessageSize,
 		receiveBuf:     make([]byte, bufferSize),
 		massBytes:      mass.New[byte](10 * config.MaxMessageSize),
+		bufferReadsCh:  make(chan struct{}, 1),
+		bufferWritesCh: make(chan struct{}, 1),
 	}
-	if config.BufferedReads {
-		c.reader = buf
-	}
-	if config.BufferedWrites {
-		c.writer = buf
-	}
-	return c
 }
 
 // Connection allows to communicate with the peer.
@@ -76,6 +70,9 @@ type Connection struct {
 	readStart, readEnd      uint64
 	massBytes               *mass.Mass[byte]
 	bytesSent               uint64
+
+	bufferReadsCh  chan struct{}
+	bufferWritesCh chan struct{}
 }
 type sendProton struct {
 	Msg        any
@@ -85,6 +82,26 @@ type sendProton struct {
 // BytesSent returns the number of bytes sent over the connection, excluding pings.
 func (c *Connection) BytesSent() uint64 {
 	return atomic.LoadUint64(&c.bytesSent)
+}
+
+// BufferReads turns on read buffer.
+func (c *Connection) BufferReads() {
+	c.reader = c.buf
+
+	select {
+	case c.bufferReadsCh <- struct{}{}:
+	default:
+	}
+}
+
+type bufferWrites struct{}
+
+// BufferWrites turns on write buffer.
+func (c *Connection) BufferWrites() {
+	var err error
+	defer sendRecover(&err)
+
+	c.sendCh <- bufferWrites{}
 }
 
 // SendProton sends proton message to the peer.
@@ -343,16 +360,22 @@ func (c *Connection) run(ctx context.Context) error {
 				}
 			}
 		})
-		if c.reader == c.buf {
-			spawn("readBuffer", parallel.Exit, func(ctx context.Context) error {
-				return c.buf.RunReader(ctx, c.peer)
-			})
-		}
-		if c.writer == c.buf {
-			spawn("writeBuffer", parallel.Exit, func(ctx context.Context) error {
-				return c.buf.RunWriter(ctx, c.peer)
-			})
-		}
+		spawn("readBuffer", parallel.Exit, func(ctx context.Context) error {
+			select {
+			case <-ctx.Done():
+				return errors.WithStack(ctx.Err())
+			case <-c.bufferReadsCh:
+			}
+			return c.buf.RunReader(ctx, c.peer)
+		})
+		spawn("writeBuffer", parallel.Exit, func(ctx context.Context) error {
+			select {
+			case <-ctx.Done():
+				return errors.WithStack(ctx.Err())
+			case <-c.bufferWritesCh:
+			}
+			return c.buf.RunWriter(ctx, c.peer)
+		})
 
 		return nil
 	})
@@ -424,6 +447,12 @@ func (c *Connection) runSend(ctx context.Context) error {
 			// ping requested
 			if _, err := c.writer.Write(pingBytes); err != nil {
 				return err
+			}
+		case bufferWrites:
+			c.writer = c.buf
+			select {
+			case c.bufferWritesCh <- struct{}{}:
+			default:
 			}
 		default:
 			return errors.New("unknown send request")
