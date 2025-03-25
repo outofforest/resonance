@@ -84,6 +84,7 @@ func (c *Connection) BytesSent() uint64 {
 	return atomic.LoadUint64(&c.bytesSent)
 }
 
+// BufferReads turns on read buffer.
 func (c *Connection) BufferReads() {
 	c.reader = c.buf
 
@@ -95,6 +96,7 @@ func (c *Connection) BufferReads() {
 
 type bufferWrites struct{}
 
+// BufferWrites turns on write buffer.
 func (c *Connection) BufferWrites() {
 	var err error
 	defer sendRecover(&err)

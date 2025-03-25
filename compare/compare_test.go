@@ -58,6 +58,9 @@ func BenchmarkPingPongProton(b *testing.B) {
 		spawn("server", parallel.Fail, func(ctx context.Context) error {
 			return resonance.RunServer(ctx, ls, config,
 				func(ctx context.Context, c *resonance.Connection) error {
+					c.BufferReads()
+					c.BufferWrites()
+
 					for range b.N {
 						msgAny, _ := c.ReceiveProton(m)
 						msg1 = msgAny.(*proton.Transaction)
@@ -70,6 +73,9 @@ func BenchmarkPingPongProton(b *testing.B) {
 		spawn("client", parallel.Exit, func(ctx context.Context) error {
 			return resonance.RunClient(ctx, ls.Addr().String(), config,
 				func(ctx context.Context, c *resonance.Connection) error {
+					c.BufferReads()
+					c.BufferWrites()
+
 					b.StartTimer()
 					for range b.N {
 						_ = c.SendProton(protonTx, m)
@@ -163,6 +169,9 @@ func BenchmarkStreamProton(b *testing.B) {
 		spawn("server", parallel.Fail, func(ctx context.Context) error {
 			return resonance.RunServer(ctx, ls, config,
 				func(ctx context.Context, c *resonance.Connection) error {
+					c.BufferReads()
+					c.BufferWrites()
+
 					for range b.N {
 						_ = c.SendProton(protonTx, m)
 					}
@@ -173,6 +182,9 @@ func BenchmarkStreamProton(b *testing.B) {
 		spawn("client", parallel.Exit, func(ctx context.Context) error {
 			return resonance.RunClient(ctx, ls.Addr().String(), config,
 				func(ctx context.Context, c *resonance.Connection) error {
+					c.BufferReads()
+					c.BufferWrites()
+
 					b.StartTimer()
 					for range b.N {
 						msgAny, _ := c.ReceiveProton(m)
