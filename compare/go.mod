@@ -2,6 +2,8 @@ module github.com/outofforest/resonance/compare
 
 go 1.23.0
 
+toolchain go1.24.1
+
 replace github.com/outofforest/resonance => ../
 
 require (
@@ -11,7 +13,7 @@ require (
 	github.com/outofforest/resonance v0.7.4
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.10.0
-	google.golang.org/grpc v1.71.0
+	google.golang.org/grpc v1.71.1
 	google.golang.org/protobuf v1.36.6
 )
 
