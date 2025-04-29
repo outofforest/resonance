@@ -37,8 +37,7 @@ func BenchmarkPingPongProton(b *testing.B) {
 	b.StopTimer()
 	b.ResetTimer()
 
-	ctx, cancel := context.WithCancel(logger.WithLogger(context.Background(), logger.New(logger.DefaultConfig)))
-	b.Cleanup(cancel)
+	ctx := logger.WithLogger(b.Context(), logger.New(logger.DefaultConfig))
 
 	m := proton.NewMarshaller()
 	size, err := m.Size(protonTx)
@@ -96,8 +95,7 @@ func BenchmarkPingPongProtobuf(b *testing.B) {
 	b.StopTimer()
 	b.ResetTimer()
 
-	ctx, cancel := context.WithCancel(logger.WithLogger(context.Background(), logger.New(logger.DefaultConfig)))
-	b.Cleanup(cancel)
+	ctx := logger.WithLogger(b.Context(), logger.New(logger.DefaultConfig))
 
 	l, err := net.Listen("tcp", "localhost:0")
 	require.NoError(b, err)
@@ -149,8 +147,7 @@ func BenchmarkStreamProton(b *testing.B) {
 	b.StopTimer()
 	b.ResetTimer()
 
-	ctx, cancel := context.WithCancel(logger.WithLogger(context.Background(), logger.New(logger.DefaultConfig)))
-	b.Cleanup(cancel)
+	ctx := logger.WithLogger(b.Context(), logger.New(logger.DefaultConfig))
 
 	m := proton.NewMarshaller()
 	size, err := m.Size(protonTx)
@@ -203,8 +200,7 @@ func BenchmarkStreamProtobuf(b *testing.B) {
 	b.StopTimer()
 	b.ResetTimer()
 
-	ctx, cancel := context.WithCancel(logger.WithLogger(context.Background(), logger.New(logger.DefaultConfig)))
-	b.Cleanup(cancel)
+	ctx := logger.WithLogger(b.Context(), logger.New(logger.DefaultConfig))
 
 	l, err := net.Listen("tcp", "localhost:0")
 	require.NoError(b, err)
