@@ -9,8 +9,5 @@ import (
 
 // NewContext returns new context for simulations in tests.
 func NewContext(t *testing.T) context.Context {
-	ctx, cancel := context.WithCancel(logger.WithLogger(context.Background(), logger.New(logger.DefaultConfig)))
-	t.Cleanup(cancel)
-
-	return ctx
+	return logger.WithLogger(t.Context(), logger.New(logger.DefaultConfig))
 }
