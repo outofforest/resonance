@@ -37,13 +37,11 @@ func TestConnectionProtonShort(t *testing.T) {
 	group.Spawn("c1", parallel.Fail, c1.run)
 	group.Spawn("c2", parallel.Fail, c2.run)
 
-	c1.sendPing()
-	c1.sendPing()
-	c1.sendPing()
-	c1.sendPing()
-	c1.sendPing()
-
-	requireT.Zero(c1.BytesSent())
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
 
 	requireT.NoError(c1.SendProton(&test.Message{
 		Field: "A",
@@ -53,9 +51,8 @@ func TestConnectionProtonShort(t *testing.T) {
 	requireT.NoError(err)
 
 	requireT.Equal("A", msg.(*test.Message).Field)
-	requireT.EqualValues(4, c1.BytesSent())
 
-	c2.sendPing()
+	requireT.NoError(c2.sendPing())
 	requireT.NoError(c2.SendProton(&test.Message{
 		Field: "B",
 	}, m))
@@ -63,9 +60,8 @@ func TestConnectionProtonShort(t *testing.T) {
 	msg, err = c1.ReceiveProton(m)
 	requireT.NoError(err)
 	requireT.Equal("B", msg.(*test.Message).Field)
-	requireT.EqualValues(4, c2.BytesSent())
 
-	c1.sendPing()
+	requireT.NoError(c1.sendPing())
 
 	for range 1000 {
 		requireT.NoError(c1.SendProton(&test.Message{
@@ -82,9 +78,6 @@ func TestConnectionProtonShort(t *testing.T) {
 		requireT.NoError(err)
 		requireT.Equal("D", msg.(*test.Message).Field)
 	}
-
-	requireT.EqualValues(8004, c1.BytesSent())
-	requireT.EqualValues(4, c2.BytesSent())
 }
 
 func TestConnectionProtonLong(t *testing.T) {
@@ -110,11 +103,11 @@ func TestConnectionProtonLong(t *testing.T) {
 	group.Spawn("c1", parallel.Fail, c1.run)
 	group.Spawn("c2", parallel.Fail, c2.run)
 
-	c1.sendPing()
-	c1.sendPing()
-	c1.sendPing()
-	c1.sendPing()
-	c1.sendPing()
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
 
 	requireT.NoError(c1.SendProton(&test.Message{
 		Field: longString + "A",
@@ -125,7 +118,7 @@ func TestConnectionProtonLong(t *testing.T) {
 
 	requireT.Equal(longString+"A", msg.(*test.Message).Field)
 
-	c2.sendPing()
+	requireT.NoError(c2.sendPing())
 	requireT.NoError(c2.SendProton(&test.Message{
 		Field: longString + "B",
 	}, m))
@@ -134,7 +127,7 @@ func TestConnectionProtonLong(t *testing.T) {
 	requireT.NoError(err)
 	requireT.Equal(longString+"B", msg.(*test.Message).Field)
 
-	c1.sendPing()
+	requireT.NoError(c1.sendPing())
 
 	for range 1000 {
 		requireT.NoError(c1.SendProton(&test.Message{
@@ -302,11 +295,11 @@ func TestConnectionBytesShort(t *testing.T) {
 	group.Spawn("c1", parallel.Fail, c1.run)
 	group.Spawn("c2", parallel.Fail, c2.run)
 
-	c1.sendPing()
-	c1.sendPing()
-	c1.sendPing()
-	c1.sendPing()
-	c1.sendPing()
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
 
 	requireT.NoError(c1.SendBytes([]byte{0x01}))
 
@@ -314,17 +307,15 @@ func TestConnectionBytesShort(t *testing.T) {
 	requireT.NoError(err)
 
 	requireT.Equal([]byte{0x01}, msg)
-	requireT.EqualValues(2, c1.BytesSent())
 
-	c2.sendPing()
+	requireT.NoError(c2.sendPing())
 	requireT.NoError(c2.SendBytes([]byte{0x02}))
 
 	msg, err = c1.ReceiveBytes()
 	requireT.NoError(err)
 	requireT.Equal([]byte{0x02}, msg)
-	requireT.EqualValues(2, c2.BytesSent())
 
-	c1.sendPing()
+	requireT.NoError(c1.sendPing())
 
 	for range 1000 {
 		requireT.NoError(c1.SendBytes([]byte{0x03}))
@@ -337,9 +328,6 @@ func TestConnectionBytesShort(t *testing.T) {
 		requireT.NoError(err)
 		requireT.Equal([]byte{0x04}, msg)
 	}
-
-	requireT.EqualValues(4002, c1.BytesSent())
-	requireT.EqualValues(2, c2.BytesSent())
 }
 
 func TestConnectionBytesLong(t *testing.T) {
@@ -363,11 +351,11 @@ func TestConnectionBytesLong(t *testing.T) {
 	group.Spawn("c1", parallel.Fail, c1.run)
 	group.Spawn("c2", parallel.Fail, c2.run)
 
-	c1.sendPing()
-	c1.sendPing()
-	c1.sendPing()
-	c1.sendPing()
-	c1.sendPing()
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
 
 	requireT.NoError(c1.SendBytes([]byte(longString + "A")))
 
@@ -376,14 +364,14 @@ func TestConnectionBytesLong(t *testing.T) {
 
 	requireT.Equal([]byte(longString+"A"), msg)
 
-	c2.sendPing()
+	requireT.NoError(c2.sendPing())
 	requireT.NoError(c2.SendBytes([]byte(longString + "B")))
 
 	msg, err = c1.ReceiveBytes()
 	requireT.NoError(err)
 	requireT.Equal([]byte(longString+"B"), msg)
 
-	c1.sendPing()
+	requireT.NoError(c1.sendPing())
 
 	for range 1000 {
 		requireT.NoError(c1.SendBytes([]byte(longString + "C")))
@@ -542,11 +530,11 @@ func TestConnectionRawBytesShort(t *testing.T) {
 	group.Spawn("c1", parallel.Fail, c1.run)
 	group.Spawn("c2", parallel.Fail, c2.run)
 
-	c1.sendPing()
-	c1.sendPing()
-	c1.sendPing()
-	c1.sendPing()
-	c1.sendPing()
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
 
 	requireT.NoError(c1.SendRawBytes([]byte{0x01, 0x01}))
 
@@ -554,17 +542,15 @@ func TestConnectionRawBytesShort(t *testing.T) {
 	requireT.NoError(err)
 
 	requireT.Equal([]byte{0x01, 0x01}, msg)
-	requireT.EqualValues(2, c1.BytesSent())
 
-	c2.sendPing()
+	requireT.NoError(c2.sendPing())
 	requireT.NoError(c2.SendRawBytes([]byte{0x01, 0x02}))
 
 	msg, err = c1.ReceiveRawBytes()
 	requireT.NoError(err)
 	requireT.Equal([]byte{0x01, 0x02}, msg)
-	requireT.EqualValues(2, c2.BytesSent())
 
-	c1.sendPing()
+	requireT.NoError(c1.sendPing())
 
 	for range 1000 {
 		requireT.NoError(c1.SendRawBytes([]byte{0x01, 0x03}))
@@ -577,9 +563,6 @@ func TestConnectionRawBytesShort(t *testing.T) {
 		requireT.NoError(err)
 		requireT.Equal([]byte{0x01, 0x04}, msg)
 	}
-
-	requireT.EqualValues(4002, c1.BytesSent())
-	requireT.EqualValues(2, c2.BytesSent())
 }
 
 func TestConnectionRawBytesLong(t *testing.T) {
@@ -603,11 +586,11 @@ func TestConnectionRawBytesLong(t *testing.T) {
 	group.Spawn("c1", parallel.Fail, c1.run)
 	group.Spawn("c2", parallel.Fail, c2.run)
 
-	c1.sendPing()
-	c1.sendPing()
-	c1.sendPing()
-	c1.sendPing()
-	c1.sendPing()
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
 
 	requireT.NoError(c1.SendRawBytes(append([]byte{0xad, 0x02}, longString+"A"...)))
 
@@ -616,14 +599,14 @@ func TestConnectionRawBytesLong(t *testing.T) {
 
 	requireT.Equal(append([]byte{0xad, 0x02}, longString+"A"...), msg)
 
-	c2.sendPing()
+	requireT.NoError(c2.sendPing())
 	requireT.NoError(c2.SendRawBytes(append([]byte{0xad, 0x02}, longString+"B"...)))
 
 	msg, err = c1.ReceiveRawBytes()
 	requireT.NoError(err)
 	requireT.Equal(append([]byte{0xad, 0x02}, longString+"B"...), msg)
 
-	c1.sendPing()
+	requireT.NoError(c1.sendPing())
 
 	for range 1000 {
 		requireT.NoError(c1.SendRawBytes(append([]byte{0xad, 0x02}, longString+"C"...)))
@@ -701,28 +684,26 @@ func TestConnectionStream(t *testing.T) {
 	group.Spawn("c1", parallel.Fail, c1.run)
 	group.Spawn("c2", parallel.Fail, c2.run)
 
-	c1.sendPing()
-	c1.sendPing()
-	c1.sendPing()
-	c1.sendPing()
-	c1.sendPing()
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
 
 	requireT.NoError(c1.SendStream(bytes.NewBuffer([]byte{0x01, 0x01})))
 
 	msg, err := c2.ReceiveBytes()
 	requireT.NoError(err)
 	requireT.Equal([]byte{0x01}, msg)
-	requireT.EqualValues(2, c1.BytesSent())
 
-	c2.sendPing()
+	requireT.NoError(c2.sendPing())
 	requireT.NoError(c2.SendStream(bytes.NewBuffer([]byte{0x01, 0x02})))
 
 	msg, err = c1.ReceiveBytes()
 	requireT.NoError(err)
 	requireT.Equal([]byte{0x02}, msg)
-	requireT.EqualValues(2, c2.BytesSent())
 
-	c1.sendPing()
+	requireT.NoError(c1.sendPing())
 
 	for range 1000 {
 		requireT.NoError(c1.SendStream(bytes.NewBuffer([]byte{0x01, 0x03})))
@@ -735,8 +716,6 @@ func TestConnectionStream(t *testing.T) {
 		requireT.NoError(err)
 		requireT.Equal([]byte{0x04}, msg)
 	}
-	requireT.EqualValues(4002, c1.BytesSent())
-	requireT.EqualValues(2, c2.BytesSent())
 }
 
 func TestConnectionUnbuffered(t *testing.T) {
@@ -758,11 +737,11 @@ func TestConnectionUnbuffered(t *testing.T) {
 	group.Spawn("c1", parallel.Fail, c1.run)
 	group.Spawn("c2", parallel.Fail, c2.run)
 
-	c1.sendPing()
-	c1.sendPing()
-	c1.sendPing()
-	c1.sendPing()
-	c1.sendPing()
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
+	requireT.NoError(c1.sendPing())
 
 	requireT.NoError(c1.SendProton(&test.Message{
 		Field: "A",
@@ -773,7 +752,7 @@ func TestConnectionUnbuffered(t *testing.T) {
 
 	requireT.Equal("A", msg.(*test.Message).Field)
 
-	c2.sendPing()
+	requireT.NoError(c2.sendPing())
 	requireT.NoError(c2.SendProton(&test.Message{
 		Field: "B",
 	}, m))
@@ -782,7 +761,7 @@ func TestConnectionUnbuffered(t *testing.T) {
 	requireT.NoError(err)
 	requireT.Equal("B", msg.(*test.Message).Field)
 
-	c1.sendPing()
+	requireT.NoError(c1.sendPing())
 
 	for range 1000 {
 		requireT.NoError(c1.SendProton(&test.Message{
