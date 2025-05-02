@@ -3,6 +3,7 @@ package resonance
 import (
 	"context"
 	"io"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -45,13 +46,13 @@ func NewConnection(peer Peer, config Config) *Connection {
 		buf:            buf,
 		reader:         peer,
 		writer:         peer,
-		sendCh:         make(chan any, 50),
 		bufferSize:     bufferSize,
 		maxMessageSize: config.MaxMessageSize,
 		receiveBuf:     make([]byte, bufferSize),
 		massBytes:      mass.New[byte](10 * config.MaxMessageSize),
 		bufferReadsCh:  make(chan struct{}, 1),
 		bufferWritesCh: make(chan struct{}, 1),
+		sendBuf:        make([]byte, bufferSize),
 	}
 }
 
@@ -61,27 +62,18 @@ type Connection struct {
 
 	buf                     PeerBuffer
 	reader                  io.Reader
-	writer                  io.Writer
 	sendLatch, receiveLatch atomic.Bool
-	sendCh                  chan any
 	bufferSize              uint64
 	maxMessageSize          uint64
 	receiveBuf              []byte
 	readStart, readEnd      uint64
 	massBytes               *mass.Mass[byte]
-	bytesSent               uint64
+	bufferReadsCh           chan struct{}
+	bufferWritesCh          chan struct{}
 
-	bufferReadsCh  chan struct{}
-	bufferWritesCh chan struct{}
-}
-type sendProton struct {
-	Msg        any
-	Marshaller ProtonMarshaller
-}
-
-// BytesSent returns the number of bytes sent over the connection, excluding pings.
-func (c *Connection) BytesSent() uint64 {
-	return atomic.LoadUint64(&c.bytesSent)
+	mu      sync.Mutex
+	writer  io.Writer
+	sendBuf []byte
 }
 
 // BufferReads turns on read buffer.
@@ -94,34 +86,42 @@ func (c *Connection) BufferReads() {
 	}
 }
 
-type bufferWrites struct{}
-
 // BufferWrites turns on write buffer.
 func (c *Connection) BufferWrites() {
-	var err error
-	defer sendRecover(&err)
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	c.sendCh <- bufferWrites{}
+	c.writer = c.buf
+	select {
+	case c.bufferWritesCh <- struct{}{}:
+	default:
+	}
 }
 
 // SendProton sends proton message to the peer.
-func (c *Connection) SendProton(msg any, m ProtonMarshaller) (retErr error) {
-	msgSize, err := m.Size(msg)
+func (c *Connection) SendProton(msg any, m ProtonMarshaller) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.sendLatch.Store(true)
+
+	msgID, msgSize, err := m.Marshal(msg, c.sendBuf[2*varuint64.MaxSize:])
 	if err != nil {
 		return err
 	}
-
 	if msgSize > c.maxMessageSize {
 		return errors.Errorf("message size %d exceeds maximum %d", msgSize, c.maxMessageSize)
 	}
 
-	defer sendRecover(&retErr)
+	msgIDSize := varuint64.Size(msgID)
+	varuint64.Put(c.sendBuf[2*varuint64.MaxSize-msgIDSize:], msgID)
 
-	c.sendCh <- sendProton{
-		Msg:        msg,
-		Marshaller: m,
-	}
-	return nil
+	totalSize := msgIDSize + msgSize
+	bufferStart := 2*varuint64.MaxSize - msgIDSize - varuint64.Size(totalSize)
+	totalSize += varuint64.Put(c.sendBuf[bufferStart:], totalSize)
+
+	_, err = c.writer.Write(c.sendBuf[bufferStart : bufferStart+totalSize])
+	return errors.WithStack(err)
 }
 
 // ReceiveProton receives proton message from the peer.
@@ -184,15 +184,22 @@ func (c *Connection) ReceiveProton(m ProtonUnmarshaller) (any, error) {
 }
 
 // SendBytes sends bytes.
-func (c *Connection) SendBytes(msg []byte) (retErr error) {
+func (c *Connection) SendBytes(msg []byte) error {
 	if msgSize := uint64(len(msg)); msgSize > c.maxMessageSize {
 		return errors.Errorf("message size %d exceeds maximum %d", msgSize, c.maxMessageSize)
 	}
 
-	defer sendRecover(&retErr)
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	c.sendCh <- msg
-	return nil
+	c.sendLatch.Store(true)
+
+	n := varuint64.Put(c.sendBuf, uint64(len(msg)))
+	if _, err := c.writer.Write(c.sendBuf[:n]); err != nil {
+		return errors.WithStack(err)
+	}
+	_, err := c.writer.Write(msg)
+	return errors.WithStack(err)
 }
 
 // ReceiveBytes receives bytes.
@@ -249,18 +256,19 @@ func (c *Connection) ReceiveBytes() ([]byte, error) {
 	}
 }
 
-type rawBytes []byte
-
 // SendRawBytes sends bytes with length prefix already included.
-func (c *Connection) SendRawBytes(msg []byte) (retErr error) {
+func (c *Connection) SendRawBytes(msg []byte) error {
 	if msgSize := uint64(len(msg)); msgSize > c.maxMessageSize {
 		return errors.Errorf("message size %d exceeds maximum %d", msgSize, c.maxMessageSize)
 	}
 
-	defer sendRecover(&retErr)
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	c.sendCh <- rawBytes(msg)
-	return nil
+	c.sendLatch.Store(true)
+
+	_, err := c.writer.Write(msg)
+	return errors.WithStack(err)
 }
 
 // ReceiveRawBytes receives bytes and returns them with together with length prefix.
@@ -319,11 +327,14 @@ func (c *Connection) ReceiveRawBytes() ([]byte, error) {
 }
 
 // SendStream sends stream of data taken from the reader.
-func (c *Connection) SendStream(r io.Reader) (retErr error) {
-	defer sendRecover(&retErr)
+func (c *Connection) SendStream(r io.Reader) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	c.sendCh <- r
-	return nil
+	c.sendLatch.Store(true)
+
+	_, err := io.Copy(c.writer, r)
+	return errors.WithStack(err)
 }
 
 // Close closes connection.
@@ -334,10 +345,8 @@ func (c *Connection) Close() {
 
 func (c *Connection) run(ctx context.Context) error {
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-		spawn("send", parallel.Continue, c.runSend)
 		spawn("ping", parallel.Fail, func(ctx context.Context) error {
 			defer c.Close()
-			defer close(c.sendCh)
 
 			pingTicker := time.NewTicker(pingInterval)
 			defer pingTicker.Stop()
@@ -350,8 +359,10 @@ func (c *Connection) run(ctx context.Context) error {
 				case <-ctx.Done():
 					return errors.WithStack(ctx.Err())
 				case <-pingTicker.C:
-					if latch := c.sendLatch.Swap(false); !latch && len(c.sendCh) == 0 {
-						c.sendPing()
+					if latch := c.sendLatch.Swap(false); !latch {
+						if err := c.sendPing(); err != nil {
+							return err
+						}
 					}
 				case <-missedTicker.C:
 					if latch := c.receiveLatch.Swap(false); !latch {
@@ -381,89 +392,12 @@ func (c *Connection) run(ctx context.Context) error {
 	})
 }
 
-func (c *Connection) sendPing() {
-	c.sendCh <- struct{}{}
-}
+func (c *Connection) sendPing() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-func (c *Connection) runSend(ctx context.Context) error {
-	sendBuf := make([]byte, c.bufferSize)
+	c.sendLatch.Store(true)
 
-	for msg := range c.sendCh {
-		c.sendLatch.Store(true)
-
-		switch m := msg.(type) {
-		case sendProton:
-			msgID, msgSize, err := m.Marshaller.Marshal(m.Msg, sendBuf[2*varuint64.MaxSize:])
-			if err != nil {
-				return err
-			}
-			if msgSize > c.maxMessageSize {
-				return errors.Errorf("message size %d exceeds maximum %d", msgSize, c.maxMessageSize)
-			}
-
-			msgIDSize := varuint64.Size(msgID)
-			varuint64.Put(sendBuf[2*varuint64.MaxSize-msgIDSize:], msgID)
-
-			totalSize := msgIDSize + msgSize
-			bufferStart := 2*varuint64.MaxSize - msgIDSize - varuint64.Size(totalSize)
-			totalSize += varuint64.Put(sendBuf[bufferStart:], totalSize)
-
-			if _, err := c.writer.Write(sendBuf[bufferStart : bufferStart+totalSize]); err != nil {
-				return err
-			}
-
-			atomic.AddUint64(&c.bytesSent, totalSize)
-		case rawBytes:
-			if uint64(len(m)) > c.maxMessageSize {
-				return errors.Errorf("message size %d exceeds allowed maximum %d", len(m), c.bufferSize)
-			}
-			if _, err := c.writer.Write(m); err != nil {
-				return err
-			}
-
-			atomic.AddUint64(&c.bytesSent, uint64(len(m)))
-		case []byte:
-			if uint64(len(m)) > c.maxMessageSize {
-				return errors.Errorf("message size %d exceeds allowed maximum %d", len(m), c.bufferSize)
-			}
-
-			n := varuint64.Put(sendBuf, uint64(len(m)))
-			if _, err := c.writer.Write(sendBuf[:n]); err != nil {
-				return err
-			}
-			if _, err := c.writer.Write(m); err != nil {
-				return err
-			}
-
-			atomic.AddUint64(&c.bytesSent, n+uint64(len(m)))
-		case io.Reader:
-			n, err := io.Copy(c.writer, m)
-			if err != nil {
-				return errors.WithStack(err)
-			}
-
-			atomic.AddUint64(&c.bytesSent, uint64(n))
-		case struct{}:
-			// ping requested
-			if _, err := c.writer.Write(pingBytes); err != nil {
-				return err
-			}
-		case bufferWrites:
-			c.writer = c.buf
-			select {
-			case c.bufferWritesCh <- struct{}{}:
-			default:
-			}
-		default:
-			return errors.New("unknown send request")
-		}
-	}
-
-	return errors.WithStack(ctx.Err())
-}
-
-func sendRecover(err *error) {
-	if recover() != nil {
-		*err = errors.New("connection is closed")
-	}
+	_, err := c.writer.Write(pingBytes)
+	return errors.WithStack(err)
 }
