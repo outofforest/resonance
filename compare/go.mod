@@ -9,7 +9,7 @@ replace github.com/outofforest/resonance => ../
 require (
 	github.com/outofforest/logger v0.6.0
 	github.com/outofforest/parallel v0.2.3
-	github.com/outofforest/proton v0.12.0
+	github.com/outofforest/proton v0.15.0
 	github.com/outofforest/resonance v0.7.4
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.10.0
@@ -32,7 +32,7 @@ require (
 	golang.org/x/mod v0.24.0 // indirect
 	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
-	golang.org/x/text v0.24.0 // indirect
+	golang.org/x/text v0.25.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250219182151-9fdb1cabc7b2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
