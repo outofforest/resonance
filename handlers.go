@@ -23,7 +23,10 @@ func RunServer(
 			for {
 				conn, err := ls.Accept()
 				if err != nil {
-					return errors.WithStack(ctx.Err())
+					if ctx.Err() != nil {
+						return errors.WithStack(ctx.Err())
+					}
+					return errors.WithStack(err)
 				}
 
 				tcpConn := conn.(*net.TCPConn)
