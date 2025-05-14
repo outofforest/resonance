@@ -23,10 +23,11 @@ func RunServer(
 			for {
 				conn, err := ls.Accept()
 				if err != nil {
-					if ctx.Err() != nil {
-						return errors.WithStack(ctx.Err())
-					}
 					return errors.WithStack(err)
+				}
+				if ctx.Err() != nil {
+					_ = conn.Close()
+					return errors.WithStack(ctx.Err())
 				}
 
 				tcpConn := conn.(*net.TCPConn)
@@ -49,9 +50,11 @@ func RunServer(
 			}
 		})
 		spawn("watchdog", parallel.Fail, func(ctx context.Context) error {
-			defer ls.Close()
-
 			<-ctx.Done()
+			conn, err := net.Dial("tcp", ls.Addr().String())
+			if err == nil {
+				_ = conn.Close()
+			}
 			return errors.WithStack(ctx.Err())
 		})
 
