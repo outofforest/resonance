@@ -34,8 +34,8 @@ func TestConnectionProtonShort(t *testing.T) {
 	c2.BufferReads()
 	c2.BufferWrites()
 
-	group.Spawn("c1", parallel.Fail, c1.run)
-	group.Spawn("c2", parallel.Fail, c2.run)
+	group.Spawn("c1", parallel.Fail, c1.Run)
+	group.Spawn("c2", parallel.Fail, c2.Run)
 
 	requireT.NoError(c1.sendPing())
 	requireT.NoError(c1.sendPing())
@@ -100,8 +100,8 @@ func TestConnectionProtonLong(t *testing.T) {
 	c2.BufferReads()
 	c2.BufferWrites()
 
-	group.Spawn("c1", parallel.Fail, c1.run)
-	group.Spawn("c2", parallel.Fail, c2.run)
+	group.Spawn("c1", parallel.Fail, c1.Run)
+	group.Spawn("c2", parallel.Fail, c2.Run)
 
 	requireT.NoError(c1.sendPing())
 	requireT.NoError(c1.sendPing())
@@ -184,8 +184,8 @@ func TestConnectionProtonReceiveTooBigMessage(t *testing.T) {
 	c2.BufferReads()
 	c2.BufferWrites()
 
-	group.Spawn("c1", parallel.Fail, c1.run)
-	group.Spawn("c2", parallel.Fail, c2.run)
+	group.Spawn("c1", parallel.Fail, c1.Run)
+	group.Spawn("c2", parallel.Fail, c2.Run)
 
 	requireT.NoError(c1.SendProton(&test.Message{
 		Field: longString,
@@ -216,8 +216,8 @@ func TestConnectionProtonReceiveInvalidMessage1(t *testing.T) {
 	c2.BufferReads()
 	c2.BufferWrites()
 
-	group.Spawn("c1", parallel.Fail, c1.run)
-	group.Spawn("c2", parallel.Fail, c2.run)
+	group.Spawn("c1", parallel.Fail, c1.Run)
+	group.Spawn("c2", parallel.Fail, c2.Run)
 
 	buf := make([]byte, config.MaxMessageSize+varuint64.MaxSize)
 	id, size, err := m.Marshal(&test.Message{
@@ -255,8 +255,8 @@ func TestConnectionProtonReceiveInvalidMessage2(t *testing.T) {
 	c2.BufferReads()
 	c2.BufferWrites()
 
-	group.Spawn("c1", parallel.Fail, c1.run)
-	group.Spawn("c2", parallel.Fail, c2.run)
+	group.Spawn("c1", parallel.Fail, c1.Run)
+	group.Spawn("c2", parallel.Fail, c2.Run)
 
 	buf := make([]byte, config.MaxMessageSize+varuint64.MaxSize)
 	id, size, err := m.Marshal(&test.Message{
@@ -292,8 +292,8 @@ func TestConnectionBytesShort(t *testing.T) {
 	c2.BufferReads()
 	c2.BufferWrites()
 
-	group.Spawn("c1", parallel.Fail, c1.run)
-	group.Spawn("c2", parallel.Fail, c2.run)
+	group.Spawn("c1", parallel.Fail, c1.Run)
+	group.Spawn("c2", parallel.Fail, c2.Run)
 
 	requireT.NoError(c1.sendPing())
 	requireT.NoError(c1.sendPing())
@@ -348,8 +348,8 @@ func TestConnectionBytesLong(t *testing.T) {
 	c2.BufferReads()
 	c2.BufferWrites()
 
-	group.Spawn("c1", parallel.Fail, c1.run)
-	group.Spawn("c2", parallel.Fail, c2.run)
+	group.Spawn("c1", parallel.Fail, c1.Run)
+	group.Spawn("c2", parallel.Fail, c2.Run)
 
 	requireT.NoError(c1.sendPing())
 	requireT.NoError(c1.sendPing())
@@ -418,8 +418,8 @@ func TestConnectionBytesReceiveTooBigMessage(t *testing.T) {
 	c2.BufferReads()
 	c2.BufferWrites()
 
-	group.Spawn("c1", parallel.Fail, c1.run)
-	group.Spawn("c2", parallel.Fail, c2.run)
+	group.Spawn("c1", parallel.Fail, c1.Run)
+	group.Spawn("c2", parallel.Fail, c2.Run)
 
 	requireT.NoError(c1.SendBytes([]byte{0x01, 0x02, 0x03}))
 
@@ -448,8 +448,8 @@ func TestConnectionSendBytesReceiveProton(t *testing.T) {
 	c2.BufferReads()
 	c2.BufferWrites()
 
-	group.Spawn("c1", parallel.Fail, c1.run)
-	group.Spawn("c2", parallel.Fail, c2.run)
+	group.Spawn("c1", parallel.Fail, c1.Run)
+	group.Spawn("c2", parallel.Fail, c2.Run)
 
 	buf := make([]byte, config.MaxMessageSize+varuint64.MaxSize)
 	id, size, err := m.Marshal(&test.Message{
@@ -488,8 +488,8 @@ func TestConnectionSendProtonReceiveBytes(t *testing.T) {
 	c2.BufferReads()
 	c2.BufferWrites()
 
-	group.Spawn("c1", parallel.Fail, c1.run)
-	group.Spawn("c2", parallel.Fail, c2.run)
+	group.Spawn("c1", parallel.Fail, c1.Run)
+	group.Spawn("c2", parallel.Fail, c2.Run)
 
 	msg := &test.Message{
 		Field: longString,
@@ -527,8 +527,8 @@ func TestConnectionRawBytesShort(t *testing.T) {
 	c2.BufferReads()
 	c2.BufferWrites()
 
-	group.Spawn("c1", parallel.Fail, c1.run)
-	group.Spawn("c2", parallel.Fail, c2.run)
+	group.Spawn("c1", parallel.Fail, c1.Run)
+	group.Spawn("c2", parallel.Fail, c2.Run)
 
 	requireT.NoError(c1.sendPing())
 	requireT.NoError(c1.sendPing())
@@ -583,8 +583,8 @@ func TestConnectionRawBytesLong(t *testing.T) {
 	c2.BufferReads()
 	c2.BufferWrites()
 
-	group.Spawn("c1", parallel.Fail, c1.run)
-	group.Spawn("c2", parallel.Fail, c2.run)
+	group.Spawn("c1", parallel.Fail, c1.Run)
+	group.Spawn("c2", parallel.Fail, c2.Run)
 
 	requireT.NoError(c1.sendPing())
 	requireT.NoError(c1.sendPing())
@@ -653,8 +653,8 @@ func TestConnectionRawBytesReceiveTooBigMessage(t *testing.T) {
 	c2.BufferReads()
 	c2.BufferWrites()
 
-	group.Spawn("c1", parallel.Fail, c1.run)
-	group.Spawn("c2", parallel.Fail, c2.run)
+	group.Spawn("c1", parallel.Fail, c1.Run)
+	group.Spawn("c2", parallel.Fail, c2.Run)
 
 	requireT.NoError(c1.SendRawBytes([]byte{0x03, 0x01, 0x02, 0x03}))
 
@@ -681,8 +681,8 @@ func TestConnectionStream(t *testing.T) {
 	c2.BufferReads()
 	c2.BufferWrites()
 
-	group.Spawn("c1", parallel.Fail, c1.run)
-	group.Spawn("c2", parallel.Fail, c2.run)
+	group.Spawn("c1", parallel.Fail, c1.Run)
+	group.Spawn("c2", parallel.Fail, c2.Run)
 
 	requireT.NoError(c1.sendPing())
 	requireT.NoError(c1.sendPing())
@@ -734,8 +734,8 @@ func TestConnectionUnbuffered(t *testing.T) {
 	c1 := NewConnection(peer, config)
 	c2 := NewConnection(peer.OtherPeer(), config)
 
-	group.Spawn("c1", parallel.Fail, c1.run)
-	group.Spawn("c2", parallel.Fail, c2.run)
+	group.Spawn("c1", parallel.Fail, c1.Run)
+	group.Spawn("c2", parallel.Fail, c2.Run)
 
 	requireT.NoError(c1.sendPing())
 	requireT.NoError(c1.sendPing())
@@ -794,7 +794,7 @@ func TestConnectionDead(t *testing.T) {
 	c := NewConnection(peer, config)
 	c.BufferReads()
 	c.BufferWrites()
-	_ = c.run(ctx)
+	_ = c.Run(ctx)
 
 	requireT.Error(c.SendProton(test.Message{}, test.NewMarshaller()))
 	requireT.Error(c.SendBytes([]byte{0x01, 0x02}))

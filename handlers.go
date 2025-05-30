@@ -35,11 +35,11 @@ func RunServer(
 					c := NewConnection(tcpConn, config)
 
 					if handler == nil {
-						return c.run(ctx)
+						return c.Run(ctx)
 					}
 
 					_ = parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-						spawn("connection", parallel.Fail, c.run)
+						spawn("connection", parallel.Fail, c.Run)
 						spawn("handler", parallel.Exit, func(ctx context.Context) error {
 							return handler(ctx, c)
 						})
@@ -89,11 +89,11 @@ func RunClient(
 		c := NewConnection(tcpConn, config)
 
 		if handler == nil {
-			return c.run(ctx)
+			return c.Run(ctx)
 		}
 
 		return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
-			spawn("connection", parallel.Fail, c.run)
+			spawn("connection", parallel.Fail, c.Run)
 			spawn("handler", parallel.Exit, func(ctx context.Context) error {
 				return handler(ctx, c)
 			})
