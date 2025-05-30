@@ -343,7 +343,8 @@ func (c *Connection) Close() {
 	_ = c.buf.Close()
 }
 
-func (c *Connection) run(ctx context.Context) error {
+// Run runs connection's goroutines.
+func (c *Connection) Run(ctx context.Context) error {
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
 		spawn("ping", parallel.Fail, func(ctx context.Context) error {
 			defer c.Close()
