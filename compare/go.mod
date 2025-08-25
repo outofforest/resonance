@@ -12,7 +12,7 @@ require (
 	github.com/outofforest/proton v0.12.0
 	github.com/outofforest/resonance v0.7.4
 	github.com/pkg/errors v0.9.1
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.0
 	google.golang.org/grpc v1.72.0
 	google.golang.org/protobuf v1.36.6
 )
