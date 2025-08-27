@@ -10,7 +10,7 @@ require (
 	github.com/outofforest/spin v0.3.1
 	github.com/outofforest/varuint64 v0.1.1
 	github.com/pkg/errors v0.9.1
-	github.com/stretchr/testify v1.10.0
+	github.com/stretchr/testify v1.11.1
 )
 
 require (
