@@ -3,7 +3,7 @@ module github.com/outofforest/resonance
 go 1.24.0
 
 require (
-	github.com/outofforest/logger v0.6.0
+	github.com/outofforest/logger v0.6.1
 	github.com/outofforest/mass v0.2.1
 	github.com/outofforest/parallel v0.2.3
 	github.com/outofforest/proton v0.12.0
