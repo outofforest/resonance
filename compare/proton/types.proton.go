@@ -1,6 +1,7 @@
 package proton
 
 import (
+	"reflect"
 	"unsafe"
 
 	"github.com/outofforest/proton"
@@ -86,6 +87,34 @@ func (m Marshaller) Unmarshal(id uint64, buf []byte) (retMsg any, retSize uint64
 	}
 }
 
+// MakePatch creates a patch.
+func (m Marshaller) MakePatch(msgDst, msgSrc any, buf []byte) (retID, retSize uint64, retErr error) {
+	defer helpers.RecoverMakePatch(&retErr)
+
+	switch msg2 := msgDst.(type) {
+	case *Transaction:
+		return id2, makePatch2(msg2, msgSrc.(*Transaction), buf), nil
+	case *TransactionResponse:
+		return id0, makePatch0(msg2, msgSrc.(*TransactionResponse), buf), nil
+	default:
+		return 0, 0, errors.Errorf("unknown message type %T", msgDst)
+	}
+}
+
+// ApplyPatch applies patch.
+func (m Marshaller) ApplyPatch(msg any, buf []byte) (retSize uint64, retErr error) {
+	defer helpers.RecoverUnmarshal(&retErr)
+
+	switch msg2 := msg.(type) {
+	case *Transaction:
+		return applyPatch2(msg2, buf), nil
+	case *TransactionResponse:
+		return applyPatch0(msg2, buf), nil
+	default:
+		return 0, errors.Errorf("unknown message type %T", msg)
+	}
+}
+
 func size0(m *TransactionResponse) uint64 {
 	var n uint64 = 18
 	{
@@ -153,6 +182,82 @@ func unmarshal0(m *TransactionResponse, b []byte) uint64 {
 			if l > 0 {
 				m.Message = string(b[o:o+l])
 				o += l
+			}
+		}
+	}
+
+	return o
+}
+
+func makePatch0(m, mSrc *TransactionResponse, b []byte) uint64 {
+	var o uint64 = 2
+	{
+		// Hash
+
+		if reflect.DeepEqual(m.Hash, mSrc.Hash) {
+			b[0] &= 0xFE
+		} else {
+			b[0] |= 0x01
+			copy(b[o:o+16], unsafe.Slice(&m.Hash[0], 16))
+			o += 16
+		}
+	}
+	{
+		// Success
+
+		if m.Success == mSrc.Success {
+			b[1] &= 0xFE
+		} else {
+			b[1] |= 0x01
+		}
+	}
+	{
+		// Message
+
+		if reflect.DeepEqual(m.Message, mSrc.Message) {
+			b[0] &= 0xFD
+		} else {
+			b[0] |= 0x02
+			{
+				l := uint64(len(m.Message))
+				helpers.UInt64Marshal(l, b, &o)
+				copy(b[o:o+l], m.Message)
+				o += l
+			}
+		}
+	}
+
+	return o
+}
+
+func applyPatch0(m *TransactionResponse, b []byte) uint64 {
+	var o uint64 = 2
+	{
+		// Hash
+
+		if b[0]&0x01 != 0 {
+			copy(unsafe.Slice(&m.Hash[0], 16), b[o:o+16])
+			o += 16
+		}
+	}
+	{
+		// Success
+
+		if b[1]&0x01 != 0 {
+			m.Success = !m.Success
+		}
+	}
+	{
+		// Message
+
+		if b[0]&0x02 != 0 {
+			{
+				var l uint64
+				helpers.UInt64Unmarshal(&l, b, &o)
+				if l > 0 {
+					m.Message = string(b[o:o+l])
+					o += l
+				}
 			}
 		}
 	}
@@ -242,6 +347,99 @@ func unmarshal2(m *Transaction, b []byte) uint64 {
 		// Header
 
 		o += unmarshal1(&m.Header, b[o:])
+	}
+
+	return o
+}
+
+func makePatch2(m, mSrc *Transaction, b []byte) uint64 {
+	var o uint64 = 1
+	{
+		// Hash
+
+		if reflect.DeepEqual(m.Hash, mSrc.Hash) {
+			b[0] &= 0xFE
+		} else {
+			b[0] |= 0x01
+			copy(b[o:o+16], unsafe.Slice(&m.Hash[0], 16))
+			o += 16
+		}
+	}
+	{
+		// Payload
+
+		if reflect.DeepEqual(m.Payload, mSrc.Payload) {
+			b[0] &= 0xFD
+		} else {
+			b[0] |= 0x02
+			l := uint64(len(m.Payload))
+			helpers.UInt64Marshal(l, b, &o)
+			if l > 0 {
+				copy(b[o:o+l], unsafe.Slice(&m.Payload[0], l))
+				o += l
+			}
+		}
+	}
+	{
+		// GasUsed
+
+		if reflect.DeepEqual(m.GasUsed, mSrc.GasUsed) {
+			b[0] &= 0xFB
+		} else {
+			b[0] |= 0x04
+			helpers.Int64Marshal(m.GasUsed, b, &o)
+		}
+	}
+	{
+		// Header
+
+		if reflect.DeepEqual(m.Header, mSrc.Header) {
+			b[0] &= 0xF7
+		} else {
+			b[0] |= 0x08
+			o += marshal1(&m.Header, b[o:])
+		}
+	}
+
+	return o
+}
+
+func applyPatch2(m *Transaction, b []byte) uint64 {
+	var o uint64 = 1
+	{
+		// Hash
+
+		if b[0]&0x01 != 0 {
+			copy(unsafe.Slice(&m.Hash[0], 16), b[o:o+16])
+			o += 16
+		}
+	}
+	{
+		// Payload
+
+		if b[0]&0x02 != 0 {
+			var l uint64
+			helpers.UInt64Unmarshal(&l, b, &o)
+			if l > 0 {
+				m.Payload = make([]uint8, l)
+				copy(m.Payload, b[o:o+l])
+				o += l
+			}
+		}
+	}
+	{
+		// GasUsed
+
+		if b[0]&0x04 != 0 {
+			helpers.Int64Unmarshal(&m.GasUsed, b, &o)
+		}
+	}
+	{
+		// Header
+
+		if b[0]&0x08 != 0 {
+			o += unmarshal1(&m.Header, b[o:])
+		}
 	}
 
 	return o

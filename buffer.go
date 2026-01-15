@@ -12,18 +12,18 @@ import (
 // Peer represents the connected peer.
 type Peer io.ReadWriteCloser
 
+// PeerBuffer simulates the network connection from the peer's view.
+type PeerBuffer struct {
+	read  *spin.Buffer
+	write *spin.Buffer
+}
+
 // NewPeerBuffer returns new peer buffer.
 func NewPeerBuffer() PeerBuffer {
 	return PeerBuffer{
 		read:  spin.New(),
 		write: spin.New(),
 	}
-}
-
-// PeerBuffer simulates the network connection from the peer's view.
-type PeerBuffer struct {
-	read  *spin.Buffer
-	write *spin.Buffer
 }
 
 // Read reads data from the read buffer.
