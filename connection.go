@@ -37,25 +37,6 @@ type Config struct {
 	MaxMessageSize uint64
 }
 
-// NewConnection creates new connection.
-func NewConnection(peer Peer, config Config) *Connection {
-	bufferSize := config.MaxMessageSize + 3*varuint64.MaxSize
-	buf := NewPeerBuffer()
-	return &Connection{
-		peer:           peer,
-		buf:            buf,
-		reader:         peer,
-		writer:         peer,
-		bufferSize:     bufferSize,
-		maxMessageSize: config.MaxMessageSize,
-		receiveBuf:     make([]byte, bufferSize),
-		massBytes:      mass.New[byte](10 * config.MaxMessageSize),
-		bufferReadsCh:  make(chan struct{}, 1),
-		bufferWritesCh: make(chan struct{}, 1),
-		sendBuf:        make([]byte, bufferSize),
-	}
-}
-
 // Connection allows to communicate with the peer.
 type Connection struct {
 	peer Peer
@@ -74,6 +55,25 @@ type Connection struct {
 	mu      sync.Mutex
 	writer  io.Writer
 	sendBuf []byte
+}
+
+// NewConnection creates new connection.
+func NewConnection(peer Peer, config Config) *Connection {
+	bufferSize := config.MaxMessageSize + 3*varuint64.MaxSize
+	buf := NewPeerBuffer()
+	return &Connection{
+		peer:           peer,
+		buf:            buf,
+		reader:         peer,
+		writer:         peer,
+		bufferSize:     bufferSize,
+		maxMessageSize: config.MaxMessageSize,
+		receiveBuf:     make([]byte, bufferSize),
+		massBytes:      mass.New[byte](10 * config.MaxMessageSize),
+		bufferReadsCh:  make(chan struct{}, 1),
+		bufferWritesCh: make(chan struct{}, 1),
+		sendBuf:        make([]byte, bufferSize),
+	}
 }
 
 // BufferReads turns on read buffer.
@@ -235,10 +235,7 @@ func (c *Connection) ReceiveBytes() ([]byte, error) {
 		}
 
 		msgBuf := c.massBytes.NewSlice(size)
-		msgReceivedSize := c.readEnd - c.readStart
-		if msgReceivedSize > size {
-			msgReceivedSize = size
-		}
+		msgReceivedSize := min(c.readEnd-c.readStart, size)
 		if msgReceivedSize > 0 {
 			copy(msgBuf, c.receiveBuf[c.readStart:c.readStart+msgReceivedSize])
 			c.readStart += msgReceivedSize
@@ -305,10 +302,7 @@ func (c *Connection) ReceiveRawBytes() ([]byte, error) {
 
 		size += n
 		msgBuf := c.massBytes.NewSlice(size)
-		msgReceivedSize := c.readEnd - c.readStart
-		if msgReceivedSize > size {
-			msgReceivedSize = size
-		}
+		msgReceivedSize := min(c.readEnd-c.readStart, size)
 		if msgReceivedSize > 0 {
 			copy(msgBuf, c.receiveBuf[c.readStart:c.readStart+msgReceivedSize])
 			c.readStart += msgReceivedSize

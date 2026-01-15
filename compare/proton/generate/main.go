@@ -9,7 +9,7 @@ import (
 
 func main() {
 	proton.Generate("../types.proton.go",
-		compareproton.Transaction{},
-		compareproton.TransactionResponse{},
+		proton.Message[compareproton.Transaction](),
+		proton.Message[compareproton.TransactionResponse](),
 	)
 }
