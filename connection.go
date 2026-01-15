@@ -59,7 +59,8 @@ type Connection struct {
 
 // NewConnection creates new connection.
 func NewConnection(peer Peer, config Config) *Connection {
-	bufferSize := config.MaxMessageSize + 3*varuint64.MaxSize
+	// one varint for length, other one for message ID.
+	bufferSize := config.MaxMessageSize + 2*varuint64.MaxSize
 	buf := NewPeerBuffer()
 	return &Connection{
 		peer:           peer,
@@ -151,6 +152,8 @@ func (c *Connection) ReceiveProton(m ProtonUnmarshaller) (any, error) {
 		case size == 0:
 			// ping received
 			continue
+		// Varuint here is for message ID. For now, we assume that message ID took the max size of var int.
+		// Later on there is another check, doing final verification of message size.
 		case size > c.maxMessageSize+varuint64.MaxSize:
 			return nil, errors.Errorf("message size exceeds allowed maximum %d", c.maxMessageSize)
 		}
@@ -169,6 +172,12 @@ func (c *Connection) ReceiveProton(m ProtonUnmarshaller) (any, error) {
 		c.readStart += size
 
 		msgID, n := varuint64.Parse(buf[:size])
+
+		// Here we do the final check of allowed message size.
+		if size-n > c.maxMessageSize {
+			return nil, errors.Errorf("message size exceeds allowed maximum %d", c.maxMessageSize)
+		}
+
 		msg, msgSize, err := m.Unmarshal(msgID, buf[n:size])
 		if err != nil {
 			return nil, err
@@ -185,8 +194,16 @@ func (c *Connection) ReceiveProton(m ProtonUnmarshaller) (any, error) {
 
 // SendBytes sends bytes.
 func (c *Connection) SendBytes(msg []byte) error {
-	if msgSize := uint64(len(msg)); msgSize > c.maxMessageSize {
-		return errors.Errorf("message size %d exceeds maximum %d", msgSize, c.maxMessageSize)
+	msgLen := uint64(len(msg))
+	// Varuint is for message ID.
+	if msgLen > c.maxMessageSize+varuint64.MaxSize {
+		return errors.Errorf("message size exceeds allowed maximum %d", c.maxMessageSize)
+	}
+
+	// We find how many bytes there are for message ID to verify if the message itself fits into max size.
+	_, n := varuint64.Parse(msg)
+	if msgLen-n > c.maxMessageSize {
+		return errors.Errorf("message size exceeds allowed maximum %d", c.maxMessageSize)
 	}
 
 	c.mu.Lock()
@@ -194,7 +211,7 @@ func (c *Connection) SendBytes(msg []byte) error {
 
 	c.sendLatch.Store(true)
 
-	n := varuint64.Put(c.sendBuf, uint64(len(msg)))
+	n = varuint64.Put(c.sendBuf, msgLen)
 	if _, err := c.writer.Write(c.sendBuf[:n]); err != nil {
 		return errors.WithStack(err)
 	}
@@ -229,9 +246,10 @@ func (c *Connection) ReceiveBytes() ([]byte, error) {
 		case size == 0:
 			// ping received
 			continue
-		case size > c.maxMessageSize:
-			return nil, errors.Errorf("message size %d exceeds allowed maximum %d",
-				size, c.bufferSize)
+		// Varuint here is for message ID. For now, we assume that message ID took the max size of var int.
+		// Later on there is another check, doing final verification of message size.
+		case size > c.maxMessageSize+varuint64.MaxSize:
+			return nil, errors.Errorf("message size exceeds allowed maximum %d", c.maxMessageSize)
 		}
 
 		msgBuf := c.massBytes.NewSlice(size)
@@ -249,14 +267,34 @@ func (c *Connection) ReceiveBytes() ([]byte, error) {
 			msgReceivedSize += uint64(n)
 		}
 
+		// Here we do the final check of allowed message size.
+		_, n = varuint64.Parse(msgBuf[:msgReceivedSize])
+		if size-n > c.maxMessageSize {
+			return nil, errors.Errorf("message size exceeds allowed maximum %d", c.maxMessageSize)
+		}
+
 		return msgBuf, nil
 	}
 }
 
 // SendRawBytes sends bytes with length prefix already included.
 func (c *Connection) SendRawBytes(msg []byte) error {
-	if msgSize := uint64(len(msg)); msgSize > c.maxMessageSize {
-		return errors.Errorf("message size %d exceeds maximum %d", msgSize, c.maxMessageSize)
+	msgLen := uint64(len(msg))
+	// Varuints are for length and message ID.
+	if msgLen > c.maxMessageSize+2*varuint64.MaxSize {
+		return errors.Errorf("message size exceeds allowed maximum %d", c.maxMessageSize)
+	}
+
+	// We find how many bytes are taken by length.
+	_, n1 := varuint64.Parse(msg)
+	if msgLen-n1 > c.maxMessageSize+varuint64.MaxSize {
+		return errors.Errorf("message size exceeds allowed maximum %d", c.maxMessageSize)
+	}
+
+	// We find how many bytes are taken by message ID.
+	_, n2 := varuint64.Parse(msg[n1:])
+	if msgLen-n1-n2 > c.maxMessageSize {
+		return errors.Errorf("message size exceeds allowed maximum %d", c.maxMessageSize)
 	}
 
 	c.mu.Lock()
@@ -295,9 +333,10 @@ func (c *Connection) ReceiveRawBytes() ([]byte, error) {
 			// ping received
 			c.readStart += n
 			continue
-		case size+n > c.maxMessageSize:
-			return nil, errors.Errorf("message size %d exceeds allowed maximum %d",
-				size, c.bufferSize)
+		// Varuint here is for message ID. For now, we assume that message ID took the max size of var int.
+		// Later on there is another check, doing final verification of message size.
+		case size > c.maxMessageSize+varuint64.MaxSize:
+			return nil, errors.Errorf("message size exceeds allowed maximum %d", c.maxMessageSize)
 		}
 
 		size += n
@@ -314,6 +353,12 @@ func (c *Connection) ReceiveRawBytes() ([]byte, error) {
 				return nil, err
 			}
 			msgReceivedSize += uint64(n)
+		}
+
+		// Here we do the final check of allowed message size.
+		_, n = varuint64.Parse(msgBuf[n:msgReceivedSize])
+		if size-n > c.maxMessageSize {
+			return nil, errors.Errorf("message size exceeds allowed maximum %d", c.maxMessageSize)
 		}
 
 		return msgBuf, nil
