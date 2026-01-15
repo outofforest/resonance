@@ -146,6 +146,24 @@ func TestConnectionProtonLong(t *testing.T) {
 	}
 }
 
+func TestConnectionProtonSendMaxMessage(t *testing.T) {
+	requireT := require.New(t)
+
+	m := test.NewMarshaller()
+
+	peer := NewPeerBuffer()
+
+	c := NewConnection(peer, Config{
+		MaxMessageSize: uint64(len(longString) + 2),
+	})
+	c.BufferReads()
+	c.BufferWrites()
+
+	requireT.NoError(c.SendProton(&test.Message{
+		Field: longString,
+	}, m))
+}
+
 func TestConnectionProtonSendTooBigMessage(t *testing.T) {
 	requireT := require.New(t)
 
@@ -154,7 +172,7 @@ func TestConnectionProtonSendTooBigMessage(t *testing.T) {
 	peer := NewPeerBuffer()
 
 	c := NewConnection(peer, Config{
-		MaxMessageSize: 2,
+		MaxMessageSize: uint64(len(longString) + 1),
 	})
 	c.BufferReads()
 	c.BufferWrites()
@@ -162,6 +180,38 @@ func TestConnectionProtonSendTooBigMessage(t *testing.T) {
 	requireT.Error(c.SendProton(&test.Message{
 		Field: longString,
 	}, m))
+}
+
+func TestConnectionProtonReceiveMaxMessage(t *testing.T) {
+	ctx := qa.NewContext(t)
+	group := qa.NewGroup(ctx, t)
+	requireT := require.New(t)
+
+	m := test.NewMarshaller()
+
+	peer := NewPeerBuffer()
+
+	c1 := NewConnection(peer, Config{
+		MaxMessageSize: uint64(len(longString) + 10),
+	})
+	c1.BufferReads()
+	c1.BufferWrites()
+	c2 := NewConnection(peer.OtherPeer(), Config{
+		MaxMessageSize: uint64(len(longString) + 2),
+	})
+	c2.BufferReads()
+	c2.BufferWrites()
+
+	group.Spawn("c1", parallel.Fail, c1.Run)
+	group.Spawn("c2", parallel.Fail, c2.Run)
+
+	requireT.NoError(c1.SendProton(&test.Message{
+		Field: longString,
+	}, m))
+
+	msg, err := c2.ReceiveProton(m)
+	requireT.NoError(err)
+	requireT.NotNil(msg)
 }
 
 func TestConnectionProtonReceiveTooBigMessage(t *testing.T) {
@@ -179,7 +229,7 @@ func TestConnectionProtonReceiveTooBigMessage(t *testing.T) {
 	c1.BufferReads()
 	c1.BufferWrites()
 	c2 := NewConnection(peer.OtherPeer(), Config{
-		MaxMessageSize: 2,
+		MaxMessageSize: uint64(len(longString) + 1),
 	})
 	c2.BufferReads()
 	c2.BufferWrites()
@@ -386,18 +436,60 @@ func TestConnectionBytesLong(t *testing.T) {
 	}
 }
 
+func TestConnectionBytesSendMaxMessage(t *testing.T) {
+	requireT := require.New(t)
+
+	peer := NewPeerBuffer()
+
+	c := NewConnection(peer, Config{
+		MaxMessageSize: 1,
+	})
+	c.BufferReads()
+	c.BufferWrites()
+
+	requireT.NoError(c.SendBytes([]byte{0x00, 0x01}))
+}
+
 func TestConnectionBytesSendTooBigMessage(t *testing.T) {
 	requireT := require.New(t)
 
 	peer := NewPeerBuffer()
 
 	c := NewConnection(peer, Config{
-		MaxMessageSize: 2,
+		MaxMessageSize: 1,
 	})
 	c.BufferReads()
 	c.BufferWrites()
 
 	requireT.Error(c.SendBytes([]byte{0x00, 0x01, 0x02}))
+}
+
+func TestConnectionBytesReceiveMaxMessage(t *testing.T) {
+	ctx := qa.NewContext(t)
+	group := qa.NewGroup(ctx, t)
+	requireT := require.New(t)
+
+	peer := NewPeerBuffer()
+
+	c1 := NewConnection(peer, Config{
+		MaxMessageSize: uint64(len(longString) + 10),
+	})
+	c1.BufferReads()
+	c1.BufferWrites()
+	c2 := NewConnection(peer.OtherPeer(), Config{
+		MaxMessageSize: 1,
+	})
+	c2.BufferReads()
+	c2.BufferWrites()
+
+	group.Spawn("c1", parallel.Fail, c1.Run)
+	group.Spawn("c2", parallel.Fail, c2.Run)
+
+	requireT.NoError(c1.SendBytes([]byte{0x01, 0x02}))
+
+	msg, err := c2.ReceiveBytes()
+	requireT.NoError(err)
+	requireT.NotNil(msg)
 }
 
 func TestConnectionBytesReceiveTooBigMessage(t *testing.T) {
@@ -413,7 +505,7 @@ func TestConnectionBytesReceiveTooBigMessage(t *testing.T) {
 	c1.BufferReads()
 	c1.BufferWrites()
 	c2 := NewConnection(peer.OtherPeer(), Config{
-		MaxMessageSize: 2,
+		MaxMessageSize: 1,
 	})
 	c2.BufferReads()
 	c2.BufferWrites()
@@ -621,18 +713,60 @@ func TestConnectionRawBytesLong(t *testing.T) {
 	}
 }
 
+func TestConnectionRawBytesSendMaxMessage(t *testing.T) {
+	requireT := require.New(t)
+
+	peer := NewPeerBuffer()
+
+	c := NewConnection(peer, Config{
+		MaxMessageSize: 1,
+	})
+	c.BufferReads()
+	c.BufferWrites()
+
+	requireT.NoError(c.SendRawBytes([]byte{0x03, 0x00, 0x01}))
+}
+
 func TestConnectionRawBytesSendTooBigMessage(t *testing.T) {
 	requireT := require.New(t)
 
 	peer := NewPeerBuffer()
 
 	c := NewConnection(peer, Config{
-		MaxMessageSize: 3,
+		MaxMessageSize: 1,
 	})
 	c.BufferReads()
 	c.BufferWrites()
 
 	requireT.Error(c.SendRawBytes([]byte{0x03, 0x00, 0x01, 0x02}))
+}
+
+func TestConnectionRawBytesReceiveMaxMessage(t *testing.T) {
+	ctx := qa.NewContext(t)
+	group := qa.NewGroup(ctx, t)
+	requireT := require.New(t)
+
+	peer := NewPeerBuffer()
+
+	c1 := NewConnection(peer, Config{
+		MaxMessageSize: 1,
+	})
+	c1.BufferReads()
+	c1.BufferWrites()
+	c2 := NewConnection(peer.OtherPeer(), Config{
+		MaxMessageSize: 3,
+	})
+	c2.BufferReads()
+	c2.BufferWrites()
+
+	group.Spawn("c1", parallel.Fail, c1.Run)
+	group.Spawn("c2", parallel.Fail, c2.Run)
+
+	requireT.NoError(c1.SendRawBytes([]byte{0x03, 0x01, 0x02}))
+
+	msg, err := c2.ReceiveRawBytes()
+	requireT.NoError(err)
+	requireT.NotNil(msg)
 }
 
 func TestConnectionRawBytesReceiveTooBigMessage(t *testing.T) {
@@ -648,7 +782,7 @@ func TestConnectionRawBytesReceiveTooBigMessage(t *testing.T) {
 	c1.BufferReads()
 	c1.BufferWrites()
 	c2 := NewConnection(peer.OtherPeer(), Config{
-		MaxMessageSize: 3,
+		MaxMessageSize: 1,
 	})
 	c2.BufferReads()
 	c2.BufferWrites()
