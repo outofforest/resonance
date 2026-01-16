@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 
+	"github.com/outofforest/logger"
 	"github.com/outofforest/parallel"
 	"github.com/outofforest/resonance/pkg/retry"
 )
@@ -38,13 +40,16 @@ func RunServer(
 						return c.Run(ctx)
 					}
 
-					_ = parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
+					err := parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
 						spawn("connection", parallel.Fail, c.Run)
 						spawn("handler", parallel.Exit, func(ctx context.Context) error {
 							return handler(ctx, c)
 						})
 						return nil
 					})
+					if err != nil {
+						logger.Get(ctx).Warn("Connection failed.", zap.Error(err))
+					}
 					return nil
 				})
 			}

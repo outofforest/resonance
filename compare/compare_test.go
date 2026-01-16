@@ -61,9 +61,9 @@ func BenchmarkPingPongProton(b *testing.B) {
 					c.BufferWrites()
 
 					for range b.N {
-						msgAny, _ := c.ReceiveProton(m)
+						msgAny, _, _ := c.ReceiveProton(m)
 						msg1 = msgAny.(*proton.Transaction)
-						_ = c.SendProton(protonResponse, m)
+						_, _ = c.SendProton(protonResponse, m)
 					}
 					<-ctx.Done()
 					return nil
@@ -77,8 +77,8 @@ func BenchmarkPingPongProton(b *testing.B) {
 
 					b.StartTimer()
 					for range b.N {
-						_ = c.SendProton(protonTx, m)
-						msgAny, _ := c.ReceiveProton(m)
+						_, _ = c.SendProton(protonTx, m)
+						msgAny, _, _ := c.ReceiveProton(m)
 						msg2 = msgAny.(*proton.TransactionResponse)
 					}
 					b.StopTimer()
@@ -170,7 +170,7 @@ func BenchmarkStreamProton(b *testing.B) {
 					c.BufferWrites()
 
 					for range b.N {
-						_ = c.SendProton(protonTx, m)
+						_, _ = c.SendProton(protonTx, m)
 					}
 					<-ctx.Done()
 					return nil
@@ -184,7 +184,7 @@ func BenchmarkStreamProton(b *testing.B) {
 
 					b.StartTimer()
 					for range b.N {
-						msgAny, _ := c.ReceiveProton(m)
+						msgAny, _, _ := c.ReceiveProton(m)
 						msg2 = msgAny.(*proton.Transaction)
 					}
 					b.StopTimer()
