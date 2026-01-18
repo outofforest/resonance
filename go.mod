@@ -6,7 +6,7 @@ require (
 	github.com/outofforest/logger v0.7.0
 	github.com/outofforest/mass v0.2.1
 	github.com/outofforest/parallel v0.2.3
-	github.com/outofforest/proton v0.19.0
+	github.com/outofforest/proton v0.20.0
 	github.com/outofforest/qa v0.3.0
 	github.com/outofforest/spin v0.3.1
 	github.com/outofforest/varuint64 v0.1.1

@@ -7,7 +7,7 @@ replace github.com/outofforest/resonance => ../
 require (
 	github.com/outofforest/logger v0.7.0
 	github.com/outofforest/parallel v0.2.3
-	github.com/outofforest/proton v0.19.0
+	github.com/outofforest/proton v0.20.0
 	github.com/outofforest/resonance v0.21.0
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.11.1
