@@ -87,6 +87,18 @@ func (m Marshaller) Unmarshal(id uint64, buf []byte) (retMsg any, retSize uint64
 	}
 }
 
+// IsPatchNeeded checks if non-empty patch exists.
+func (m Marshaller) IsPatchNeeded(msgDst, msgSrc any) (bool, error) {
+	switch msg2 := msgDst.(type) {
+	case *Transaction:
+		return isPatchNeeded2(msg2, msgSrc.(*Transaction)), nil
+	case *TransactionResponse:
+		return isPatchNeeded0(msg2, msgSrc.(*TransactionResponse)), nil
+	default:
+		return false, errors.Errorf("unknown message type %T", msgDst)
+	}
+}
+
 // MakePatch creates a patch.
 func (m Marshaller) MakePatch(msgDst, msgSrc any, buf []byte) (retID, retSize uint64, retErr error) {
 	defer helpers.RecoverMakePatch(&retErr)
@@ -187,6 +199,34 @@ func unmarshal0(m *TransactionResponse, b []byte) uint64 {
 	}
 
 	return o
+}
+
+func isPatchNeeded0(m, mSrc *TransactionResponse) bool {
+	{
+		// Hash
+
+		if !reflect.DeepEqual(m.Hash, mSrc.Hash) {
+			return true
+		}
+
+	}
+	{
+		// Success
+
+		if m.Success != mSrc.Success {
+			return true
+		}
+	}
+	{
+		// Message
+
+		if !reflect.DeepEqual(m.Message, mSrc.Message) {
+			return true
+		}
+
+	}
+
+	return false
 }
 
 func makePatch0(m, mSrc *TransactionResponse, b []byte) uint64 {
@@ -350,6 +390,43 @@ func unmarshal2(m *Transaction, b []byte) uint64 {
 	}
 
 	return o
+}
+
+func isPatchNeeded2(m, mSrc *Transaction) bool {
+	{
+		// Hash
+
+		if !reflect.DeepEqual(m.Hash, mSrc.Hash) {
+			return true
+		}
+
+	}
+	{
+		// Payload
+
+		if !reflect.DeepEqual(m.Payload, mSrc.Payload) {
+			return true
+		}
+
+	}
+	{
+		// GasUsed
+
+		if !reflect.DeepEqual(m.GasUsed, mSrc.GasUsed) {
+			return true
+		}
+
+	}
+	{
+		// Header
+
+		if !reflect.DeepEqual(m.Header, mSrc.Header) {
+			return true
+		}
+
+	}
+
+	return false
 }
 
 func makePatch2(m, mSrc *Transaction, b []byte) uint64 {
