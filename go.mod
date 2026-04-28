@@ -12,7 +12,7 @@ require (
 	github.com/outofforest/varuint64 v0.1.1
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.11.1
-	go.uber.org/zap v1.27.1
+	go.uber.org/zap v1.28.0
 )
 
 require (
