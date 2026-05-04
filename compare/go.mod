@@ -1,6 +1,6 @@
 module github.com/outofforest/resonance/compare
 
-go 1.25
+go 1.25.0
 
 replace github.com/outofforest/resonance => ../
 
@@ -11,7 +11,7 @@ require (
 	github.com/outofforest/resonance v0.21.0
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.11.1
-	google.golang.org/grpc v1.78.0
+	google.golang.org/grpc v1.81.0
 	google.golang.org/protobuf v1.36.11
 )
 
@@ -28,9 +28,9 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.1 // indirect
 	golang.org/x/mod v0.32.0 // indirect
-	golang.org/x/net v0.49.0 // indirect
-	golang.org/x/sys v0.40.0 // indirect
-	golang.org/x/text v0.33.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260114163908-3f89685c29c3 // indirect
+	golang.org/x/net v0.51.0 // indirect
+	golang.org/x/sys v0.42.0 // indirect
+	golang.org/x/text v0.34.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260226221140-a57be14db171 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
