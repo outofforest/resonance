@@ -2,6 +2,7 @@ package resonance
 
 import (
 	"context"
+	"crypto/tls"
 	"io"
 	"sync"
 	"sync/atomic"
@@ -32,9 +33,15 @@ type ProtonUnmarshaller interface {
 	Unmarshal(id uint64, buf []byte) (any, uint64, error)
 }
 
+// CASource represents CA TLS config generator.
+type CASource interface {
+	Generate() (*tls.Config, error)
+}
+
 // Config is the configuration of connection.
 type Config struct {
 	MaxMessageSize uint64
+	CA             CASource
 }
 
 // Connection allows to communicate with the peer.

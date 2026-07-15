@@ -2,6 +2,7 @@ package resonance
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
 	"time"
 
@@ -20,10 +21,15 @@ func RunServer(
 	config Config,
 	handler func(ctx context.Context, c *Connection) error,
 ) error {
+	tlsConfig, err := config.CA.Generate()
+	if err != nil {
+		return err
+	}
+	tlsLS := tls.NewListener(ls, tlsConfig)
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
 		spawn("listener", parallel.Fail, func(ctx context.Context) error {
 			for {
-				conn, err := ls.Accept()
+				conn, err := tlsLS.Accept()
 				if err != nil {
 					return errors.WithStack(err)
 				}
@@ -32,9 +38,8 @@ func RunServer(
 					return errors.WithStack(ctx.Err())
 				}
 
-				tcpConn := conn.(*net.TCPConn)
 				spawn("client", parallel.Continue, func(ctx context.Context) error {
-					c := NewConnection(tcpConn, config)
+					c := NewConnection(conn, config)
 
 					if handler == nil {
 						return c.Run(ctx)
@@ -74,24 +79,33 @@ func RunClient(
 	config Config,
 	handler func(ctx context.Context, c *Connection) error,
 ) error {
+	tlsConfig, err := config.CA.Generate()
+	if err != nil {
+		return err
+	}
+
+	dialer := &net.Dialer{
+		Timeout: time.Second,
+	}
+
 	return parallel.Run(ctx, func(ctx context.Context, spawn parallel.SpawnFn) error {
 		retryCtx, retryCancel := context.WithTimeout(ctx, 10*time.Second)
 		defer retryCancel()
 
-		var tcpConn *net.TCPConn
+		var tlsConn *tls.Conn
 		err := retry.Do(retryCtx, time.Second, func() error {
-			conn, err := net.DialTimeout("tcp", addr, time.Second)
+			var err error
+			tlsConn, err = tls.DialWithDialer(dialer, "tcp", addr, tlsConfig)
 			if err != nil {
 				return retry.Retryable(errors.WithStack(err))
 			}
-			tcpConn = conn.(*net.TCPConn)
 			return nil
 		})
 		if err != nil {
 			return err
 		}
 
-		c := NewConnection(tcpConn, config)
+		c := NewConnection(tlsConn, config)
 
 		if handler == nil {
 			return c.Run(ctx)
