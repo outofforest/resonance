@@ -18,6 +18,8 @@ const (
 	missedPings  = 5
 )
 
+var errPing = errors.New("ping")
+
 // ProtonMarshaller is the proton's interface marshalling messages.
 type ProtonMarshaller interface {
 	Size(msg any) (uint64, error)
@@ -108,14 +110,20 @@ func (c *Connection) SendProton(msg any, m ProtonMarshaller) (uint64, error) {
 
 // ReceiveProton receives proton message from the peer.
 func (c *Connection) ReceiveProton(m ProtonUnmarshaller) (any, uint64, error) {
-	msg, n, err := c.reader.ReceiveProton(m)
-	if err != nil {
-		return nil, 0, err
+	for {
+		c.receiveLatch.Store(true)
+
+		msg, n, err := c.reader.ReceiveProton(m)
+		switch {
+		case err == nil:
+		case errors.Is(err, errPing):
+			continue
+		default:
+			return nil, 0, err
+		}
+
+		return msg, n, nil
 	}
-
-	c.receiveLatch.Store(true)
-
-	return msg, n, nil
 }
 
 // SendBytes sends bytes.
@@ -135,14 +143,20 @@ func (c *Connection) SendBytes(msg []byte) (uint64, error) {
 
 // ReceiveBytes receives bytes.
 func (c *Connection) ReceiveBytes() ([]byte, uint64, error) {
-	msg, n, err := c.reader.ReceiveBytes()
-	if err != nil {
-		return nil, 0, err
+	for {
+		c.receiveLatch.Store(true)
+
+		msg, n, err := c.reader.ReceiveBytes()
+		switch {
+		case err == nil:
+		case errors.Is(err, errPing):
+			continue
+		default:
+			return nil, 0, err
+		}
+
+		return msg, n, nil
 	}
-
-	c.receiveLatch.Store(true)
-
-	return msg, n, nil
 }
 
 // SendRawBytes sends bytes with length prefix already included.
@@ -162,14 +176,20 @@ func (c *Connection) SendRawBytes(msg []byte) (uint64, error) {
 
 // ReceiveRawBytes receives bytes and returns them with together with length prefix.
 func (c *Connection) ReceiveRawBytes() ([]byte, uint64, error) {
-	msg, n, err := c.reader.ReceiveRawBytes()
-	if err != nil {
-		return nil, 0, err
+	for {
+		c.receiveLatch.Store(true)
+
+		msg, n, err := c.reader.ReceiveRawBytes()
+		switch {
+		case err == nil:
+		case errors.Is(err, errPing):
+			continue
+		default:
+			return nil, 0, err
+		}
+
+		return msg, n, nil
 	}
-
-	c.receiveLatch.Store(true)
-
-	return msg, n, nil
 }
 
 // SendStream sends stream of data taken from the reader.

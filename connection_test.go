@@ -15,6 +15,8 @@ import (
 )
 
 func TestConnectionProtonShort(t *testing.T) {
+	t.Parallel()
+
 	ctx := qa.NewContext(t)
 	group := qa.NewGroup(ctx, t)
 	requireT := require.New(t)
@@ -85,6 +87,8 @@ func TestConnectionProtonShort(t *testing.T) {
 }
 
 func TestConnectionProtonLong(t *testing.T) {
+	t.Parallel()
+
 	ctx := qa.NewContext(t)
 	group := qa.NewGroup(ctx, t)
 	requireT := require.New(t)
@@ -155,6 +159,8 @@ func TestConnectionProtonLong(t *testing.T) {
 }
 
 func TestConnectionProtonSendMaxMessage(t *testing.T) {
+	t.Parallel()
+
 	requireT := require.New(t)
 
 	m := test.NewMarshaller()
@@ -174,6 +180,8 @@ func TestConnectionProtonSendMaxMessage(t *testing.T) {
 }
 
 func TestConnectionProtonSendTooBigMessage(t *testing.T) {
+	t.Parallel()
+
 	requireT := require.New(t)
 
 	m := test.NewMarshaller()
@@ -193,6 +201,8 @@ func TestConnectionProtonSendTooBigMessage(t *testing.T) {
 }
 
 func TestConnectionProtonReceiveMaxMessage(t *testing.T) {
+	t.Parallel()
+
 	ctx := qa.NewContext(t)
 	group := qa.NewGroup(ctx, t)
 	requireT := require.New(t)
@@ -226,6 +236,8 @@ func TestConnectionProtonReceiveMaxMessage(t *testing.T) {
 }
 
 func TestConnectionProtonReceiveTooBigMessage(t *testing.T) {
+	t.Parallel()
+
 	ctx := qa.NewContext(t)
 	group := qa.NewGroup(ctx, t)
 	requireT := require.New(t)
@@ -259,6 +271,8 @@ func TestConnectionProtonReceiveTooBigMessage(t *testing.T) {
 }
 
 func TestConnectionProtonReceiveInvalidMessage1(t *testing.T) {
+	t.Parallel()
+
 	ctx := qa.NewContext(t)
 	group := qa.NewGroup(ctx, t)
 	requireT := require.New(t)
@@ -299,6 +313,8 @@ func TestConnectionProtonReceiveInvalidMessage1(t *testing.T) {
 }
 
 func TestConnectionProtonReceiveInvalidMessage2(t *testing.T) {
+	t.Parallel()
+
 	ctx := qa.NewContext(t)
 	group := qa.NewGroup(ctx, t)
 	requireT := require.New(t)
@@ -339,6 +355,8 @@ func TestConnectionProtonReceiveInvalidMessage2(t *testing.T) {
 }
 
 func TestConnectionProtonMessageSize(t *testing.T) {
+	t.Parallel()
+
 	ctx := qa.NewContext(t)
 	group := qa.NewGroup(ctx, t)
 	requireT := require.New(t)
@@ -376,6 +394,8 @@ func TestConnectionProtonMessageSize(t *testing.T) {
 }
 
 func TestConnectionBytesShort(t *testing.T) {
+	t.Parallel()
+
 	ctx := qa.NewContext(t)
 	group := qa.NewGroup(ctx, t)
 	requireT := require.New(t)
@@ -436,6 +456,8 @@ func TestConnectionBytesShort(t *testing.T) {
 }
 
 func TestConnectionBytesLong(t *testing.T) {
+	t.Parallel()
+
 	ctx := qa.NewContext(t)
 	group := qa.NewGroup(ctx, t)
 	requireT := require.New(t)
@@ -496,6 +518,8 @@ func TestConnectionBytesLong(t *testing.T) {
 }
 
 func TestConnectionBytesSendMaxMessage(t *testing.T) {
+	t.Parallel()
+
 	requireT := require.New(t)
 
 	peer := NewPeerBuffer()
@@ -511,6 +535,8 @@ func TestConnectionBytesSendMaxMessage(t *testing.T) {
 }
 
 func TestConnectionBytesSendTooBigMessage(t *testing.T) {
+	t.Parallel()
+
 	requireT := require.New(t)
 
 	peer := NewPeerBuffer()
@@ -526,6 +552,8 @@ func TestConnectionBytesSendTooBigMessage(t *testing.T) {
 }
 
 func TestConnectionBytesReceiveMaxMessage(t *testing.T) {
+	t.Parallel()
+
 	ctx := qa.NewContext(t)
 	group := qa.NewGroup(ctx, t)
 	requireT := require.New(t)
@@ -555,6 +583,8 @@ func TestConnectionBytesReceiveMaxMessage(t *testing.T) {
 }
 
 func TestConnectionBytesReceiveTooBigMessage(t *testing.T) {
+	t.Parallel()
+
 	ctx := qa.NewContext(t)
 	group := qa.NewGroup(ctx, t)
 	requireT := require.New(t)
@@ -584,6 +614,8 @@ func TestConnectionBytesReceiveTooBigMessage(t *testing.T) {
 }
 
 func TestConnectionBytesMessageSize(t *testing.T) {
+	t.Parallel()
+
 	ctx := qa.NewContext(t)
 	group := qa.NewGroup(ctx, t)
 	requireT := require.New(t)
@@ -614,6 +646,8 @@ func TestConnectionBytesMessageSize(t *testing.T) {
 }
 
 func TestConnectionSendBytesReceiveProton(t *testing.T) {
+	t.Parallel()
+
 	ctx := qa.NewContext(t)
 	group := qa.NewGroup(ctx, t)
 	requireT := require.New(t)
@@ -655,6 +689,8 @@ func TestConnectionSendBytesReceiveProton(t *testing.T) {
 }
 
 func TestConnectionSendProtonReceiveBytes(t *testing.T) {
+	t.Parallel()
+
 	ctx := qa.NewContext(t)
 	group := qa.NewGroup(ctx, t)
 	requireT := require.New(t)
@@ -697,6 +733,8 @@ func TestConnectionSendProtonReceiveBytes(t *testing.T) {
 }
 
 func TestConnectionRawBytesShort(t *testing.T) {
+	t.Parallel()
+
 	ctx := qa.NewContext(t)
 	group := qa.NewGroup(ctx, t)
 	requireT := require.New(t)
@@ -757,6 +795,8 @@ func TestConnectionRawBytesShort(t *testing.T) {
 }
 
 func TestConnectionRawBytesLong(t *testing.T) {
+	t.Parallel()
+
 	ctx := qa.NewContext(t)
 	group := qa.NewGroup(ctx, t)
 	requireT := require.New(t)
@@ -817,6 +857,8 @@ func TestConnectionRawBytesLong(t *testing.T) {
 }
 
 func TestConnectionRawBytesSendWrongBuffer(t *testing.T) {
+	t.Parallel()
+
 	requireT := require.New(t)
 
 	peer := NewPeerBuffer()
@@ -832,6 +874,8 @@ func TestConnectionRawBytesSendWrongBuffer(t *testing.T) {
 }
 
 func TestConnectionRawBytesSendMaxMessage(t *testing.T) {
+	t.Parallel()
+
 	requireT := require.New(t)
 
 	peer := NewPeerBuffer()
@@ -847,6 +891,8 @@ func TestConnectionRawBytesSendMaxMessage(t *testing.T) {
 }
 
 func TestConnectionRawBytesSendTooBigMessage(t *testing.T) {
+	t.Parallel()
+
 	requireT := require.New(t)
 
 	peer := NewPeerBuffer()
@@ -862,6 +908,8 @@ func TestConnectionRawBytesSendTooBigMessage(t *testing.T) {
 }
 
 func TestConnectionRawBytesReceiveMaxMessage(t *testing.T) {
+	t.Parallel()
+
 	ctx := qa.NewContext(t)
 	group := qa.NewGroup(ctx, t)
 	requireT := require.New(t)
@@ -891,6 +939,8 @@ func TestConnectionRawBytesReceiveMaxMessage(t *testing.T) {
 }
 
 func TestConnectionRawBytesReceiveTooBigMessage(t *testing.T) {
+	t.Parallel()
+
 	ctx := qa.NewContext(t)
 	group := qa.NewGroup(ctx, t)
 	requireT := require.New(t)
@@ -920,6 +970,8 @@ func TestConnectionRawBytesReceiveTooBigMessage(t *testing.T) {
 }
 
 func TestConnectionRawBytesMessageSize(t *testing.T) {
+	t.Parallel()
+
 	ctx := qa.NewContext(t)
 	group := qa.NewGroup(ctx, t)
 	requireT := require.New(t)
@@ -950,6 +1002,8 @@ func TestConnectionRawBytesMessageSize(t *testing.T) {
 }
 
 func TestConnectionStream(t *testing.T) {
+	t.Parallel()
+
 	ctx := qa.NewContext(t)
 	group := qa.NewGroup(ctx, t)
 	requireT := require.New(t)
@@ -1005,6 +1059,8 @@ func TestConnectionStream(t *testing.T) {
 }
 
 func TestConnectionUnbuffered(t *testing.T) {
+	t.Parallel()
+
 	ctx := qa.NewContext(t)
 	group := qa.NewGroup(ctx, t)
 	requireT := require.New(t)
@@ -1071,6 +1127,8 @@ func TestConnectionUnbuffered(t *testing.T) {
 }
 
 func TestConnectionDead(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithCancel(qa.NewContext(t))
 	cancel()
 	requireT := require.New(t)
