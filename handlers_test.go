@@ -15,6 +15,8 @@ import (
 )
 
 func TestHandlers(t *testing.T) {
+	t.Parallel()
+
 	ctx := qa.NewContext(t)
 	group := qa.NewGroup(ctx, t)
 	requireT := require.New(t)
@@ -79,6 +81,8 @@ func TestHandlers(t *testing.T) {
 }
 
 func TestHandlersWithInvalidServerCert(t *testing.T) {
+	t.Parallel()
+
 	ctx := qa.NewContext(t)
 	group := qa.NewGroup(ctx, t)
 	requireT := require.New(t)
@@ -146,6 +150,8 @@ func TestHandlersWithInvalidServerCert(t *testing.T) {
 }
 
 func TestHandlersWithInvalidClientCert(t *testing.T) {
+	t.Parallel()
+
 	ctx := qa.NewContext(t)
 	group := qa.NewGroup(ctx, t)
 	requireT := require.New(t)
